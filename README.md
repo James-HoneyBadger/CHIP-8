@@ -49,7 +49,7 @@ window when there is a display but no terminal, and a headless run otherwise. To
 be explicit:
 
 ```sh
-python3 -m chip8 run examples/maze.ch8 --frontend terminal --scale 2   # 128x32 characters
+python3 -m chip8 run examples/maze.ch8 --frontend terminal --scale 2   # 128x16 characters
 python3 -m chip8 run examples/hires.ch8 --frontend x11 --scale 8       # a 1024x512 window
 python3 -m chip8 run examples/tour.ch8 --frontend headless --frames 600
 ```
@@ -283,6 +283,21 @@ to lose the game that is running.
 
 ---
 
+## Documentation
+
+| | |
+| --- | --- |
+| **[Instructions](docs/instructions.md)** | from nothing to a program you wrote, in ten minutes |
+| **[User manual](docs/user-manual.md)** | the frontends, keys, speed, rewind, the inspector, headless scripting, troubleshooting |
+| **[Programmer's reference](docs/programmer-reference.md)** | how to write programs: the two rules that catch everybody, the idioms that work, the library's contracts, five worked examples |
+| **[Technical reference](docs/technical-reference.md)** | how it is built: the modules, the execution and timing models, the linker, the frontends, rewind, testing, performance |
+| [Instruction set](docs/instruction-set.md) | every opcode, with this machine's behaviour for each quirk |
+| [Language](docs/language.md) | the assembler: data, includes, pseudo-instructions, labels |
+| [Library](docs/library.md) | each library routine's registers and contract |
+| [Assembler internals](docs/assembly.md) | the two passes, the linker, the encoding table |
+
+---
+
 ## What is in the box
 
 | Path | Holds |
@@ -299,7 +314,7 @@ to lose the game that is running.
 | [`chip8/lib/`](chip8/lib) | The standard library, in CHIP-8 assembly: text, draw, math, input |
 | [`roms/`](roms) | Five programs written for this emulator |
 | [`examples/`](examples) | Eighteen more, from Time Warp Studio |
-| [`docs/`](docs) | [Instruction set](docs/instruction-set.md) · [Language](docs/language.md) · [Library](docs/library.md) · [Assembler](docs/assembly.md) |
+| [`docs/`](docs) | The whole manual set: [index](docs/README.md) |
 | [`tools/make_font.py`](tools/make_font.py) | Regenerates the ASCII font from its glyph pictures |
 
 The frontends draw the same snapshot of the same machine, so nothing they show
@@ -314,7 +329,7 @@ machine has no idea which one is watching.
 python3 -m unittest discover -s tests -t .
 ```
 
-204 tests: every opcode and every quirk, every assembler encoding and refusal,
+226 tests: every opcode and every quirk, every assembler encoding and refusal,
 the linker and its data section, each library routine against the pixels it
 should set, the frame loop and its rewind, the renderers, the command line, and
 all twenty-three programs run for several seconds of emulated time — including

@@ -37,8 +37,10 @@ start:  CLS
         LD [I], V2           ; body[6..8] = 70, 71, 72
         LD I, sn_more
         LD V0, 0
-        LD V1, 0
-        LD [I], V1           ; sn_more = [food, score]
+        LD [I], V0           ; no meal yet
+        LD I, sn_score
+        LD V0, 0
+        LD [I], V0           ; no points yet
         LD I, sn_over
         LD V0, 0
         LD [I], V0           ; and it is not over
@@ -192,17 +194,18 @@ sn_new_ready:
     JP sn_step_plain
     ; ate: one longer, one more point, and a new meal
     LD I, sn_state
-    LD V3, [I]
+    LD V3, [I]               ; V0-V3 = head, tail, len, dir
     ADD V2, 1
+    LD I, sn_state           ; the load above left I four bytes further on
     LD [I], V3               ; sn_state = [head, tail, len + 1, dir]
-    LD I, sn_more
+    LD I, sn_score
     LD V0, [I]
     ADD V0, 1
-    LD I, sn_more
-    LD V5, 1
-    ADD I, V5
-    LD [I], V0               ; the score
+    LD I, sn_score
+    LD [I], V0               ; one more point
+    LD VD, V8                ; sn_place_food wants V8 for its candidate cell
     CALL sn_place_food
+    LD V8, VD                ; so the head slot comes back afterwards
     JP sn_step_head
 sn_step_plain:
     ; erase the tail, which is drawn with XOR so drawing it again removes it
@@ -343,15 +346,16 @@ sn_game_over:
     CLS
     LD V1, 8
     .printc over_text
-    LD I, sn_more
-    LD V1, [I]               ; V0 = the food, V1 = the score
-    LD V8, V1
     LD V0, 4
     LD V1, 16
     .print score_text
-    LD V0, 26
+    ; The score is read after the printing, not before: t_print keeps its
+    ; string pointer in V8 and V9, so anything parked up there is gone.
+    LD I, sn_score
+    LD V0, [I]
+    LD V2, V0
+    LD V0, 31
     LD V1, 16
-    LD V2, V8
     CALL t_num
     LD V1, 24
     .printc again_text
@@ -369,7 +373,10 @@ sn_game_over:
     8, 6, 3, 1
 .end
 .bytes sn_more
-    0, 0
+    0
+.end
+.bytes sn_score
+    0
 .end
 .bytes sn_over
     0

@@ -225,6 +225,7 @@ def load_xlib() -> ctypes.CDLL:
              ctypes.c_int, ctypes.c_int, ctypes.c_uint, ctypes.c_uint],
             ctypes.c_int,
         ),
+        "XDestroyImage": ([ctypes.POINTER(_XImage)], ctypes.c_int),
         "XPending": ([pointer], ctypes.c_int),
         "XNextEvent": ([pointer, ctypes.POINTER(_XEvent)], ctypes.c_int),
         "XLookupKeysym": ([ctypes.POINTER(_XKeyEvent), ctypes.c_int], ulong),
@@ -389,6 +390,21 @@ class X11Frontend:
     def _window_size(self, snapshot: Chip8Snapshot) -> tuple[int, int]:
         return snapshot.screen_width * self.scale, snapshot.screen_height * self.scale
 
+    def _free_image(self) -> None:
+        """Give the old image and its buffer back before making a new one.
+
+        The buffer is ours -- XCreateImage may leave `data` to the caller -- so
+        the pointer is unhooked before the image is destroyed: XDestroyImage
+        would otherwise free memory Python owns.
+        """
+
+        if self._image is None:
+            return
+        self._image.contents.data = None
+        self.xlib.XDestroyImage(self._image)
+        self._image = None
+        self._pixels = None
+
     def _make_image(self, snapshot: Chip8Snapshot) -> None:
         width, height = self._window_size(snapshot)
         image = self.xlib.XCreateImage(
@@ -424,11 +440,13 @@ class X11Frontend:
         width, height = self._window_size(snapshot)
         if (width, height) == self._size:
             return
+        self._free_image()
         self._make_image(snapshot)
         self.xlib.XResizeWindow(self.display, self.window, width, height)
         self.xlib.XFlush(self.display)
 
     def close(self) -> None:
+        self._free_image()
         if self.gc:
             self.xlib.XFreeGC(self.display, self.gc)
             self.gc = None
@@ -494,7 +512,7 @@ class X11Frontend:
         elif keysym in (_XK_F6, ord("o")):
             emulator.pause()
             emulator.step()
-        elif keysym == _XK_F7:
+        elif keysym in (_XK_F7, ord("R")):
             emulator.reset()
         elif keysym == _XK_F8:
             self.show_inspector = not self.show_inspector
@@ -504,12 +522,11 @@ class X11Frontend:
         elif keysym == _XK_F10 or keysym == _XK_BRACKET_LEFT:
             emulator.rewind_by(-1)
             self._print_inspector()
-        elif keysym in (_XK_F11, _XK_BRACKET_RIGHT, _XK_PLUS, _XK_EQUAL):
-            if keysym == _XK_F11 or keysym == _XK_BRACKET_RIGHT:
-                emulator.rewind_by(1)
-                self._print_inspector()
-            else:
-                emulator.nudge_speed(1)
+        elif keysym in (_XK_F11, _XK_BRACKET_RIGHT):
+            emulator.rewind_by(1)
+            self._print_inspector()
+        elif keysym in (_XK_PLUS, _XK_EQUAL):
+            emulator.nudge_speed(1)
         elif keysym == _XK_MINUS:
             emulator.nudge_speed(-1)
         elif keysym == _XK_SPACE:

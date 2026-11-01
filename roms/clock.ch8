@@ -1,5 +1,5 @@
 ; CLOCK -- a clock with no clock in it.
-; speed 40
+; speed 1700
 ;
 ; CHIP-8 has no real-time clock and no way to ask what time it is. What it does
 ; have is a delay timer that counts down sixty times a second whether a program
@@ -8,7 +8,11 @@
 ; and the seconds carry into minutes and minutes into hours.
 ;
 ; It is also the shortest useful example of the text library: three numbers, two
-; colons, and a heading, all redrawn once a second.
+; colons, and a heading, all redrawn once a second. Redrawing the whole face
+; costs 1661 opcodes -- a software font with no indexed addressing is not cheap,
+; about 180 opcodes a character -- so the speed here is high enough for that to
+; fit in a single frame. At 40 opcodes a frame the face would take forty frames
+; to come back and the clock would flicker once a second.
 
 start:  LD I, cl_time
         LD V0, 12            ; hours
@@ -64,30 +68,33 @@ draw:
     CLS
     LD V1, 4
     .printc heading
+    ; Each number is read out of cl_time just before it is drawn. Parking them
+    ; in V8 and up does not work: t_num clobbers everything above V2, and
+    ; .print keeps its string pointer in V8 and V9 besides.
     LD I, cl_time
-    LD V2, [I]               ; V0 = h, V1 = m, V2 = s
-    LD V8, V0                ; the library clobbers everything, so park them
-    LD V9, V1
-    LD VA, V2
+    LD V0, [I]               ; the hours
+    LD V2, V0
     LD V0, 6
     LD V1, 14
-    LD V2, V8
     CALL t_num
     LD V0, 17
     LD V1, 14
-    LD V2, 0x3A
+    LD V2, 0x3A              ; the colon
     CALL t_char
+    LD I, cl_time
+    LD V1, [I]               ; V0 = h, so V1 is the minutes
+    LD V2, V1
     LD V0, 22
     LD V1, 14
-    LD V2, V9
     CALL t_num
     LD V0, 33
     LD V1, 14
     LD V2, 0x3A
     CALL t_char
+    LD I, cl_time
+    LD V2, [I]               ; V2 is the seconds
     LD V0, 38
     LD V1, 14
-    LD V2, VA
     CALL t_num
     LD V1, 24
     .printc hint

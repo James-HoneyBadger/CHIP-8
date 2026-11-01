@@ -69,6 +69,22 @@ def detect_color_mode(stream=None) -> str:
     return "256"
 
 
+def interpret_input(data: bytes, more_waiting: bool) -> list[str]:
+    """What one read from the terminal means.
+
+    A lone escape is the quit key. Anything after an escape is a sequence -- an
+    arrow key, an F-key -- and must be swallowed whole: every byte of it would
+    otherwise be read as a character, so pressing F5 would also press the
+    keypad's 1 and 5. Pure, so this is testable without a terminal.
+    """
+
+    if data.startswith(b"\x1b"):
+        if len(data) == 1 and not more_waiting:
+            return ["\x1b"]
+        return []
+    return list(data.decode("utf-8", "ignore"))
+
+
 class TerminalSession:
     """Raw input and an alternate screen, restored however the loop ends."""
 
@@ -105,14 +121,11 @@ class TerminalSession:
         if not ready:
             return []
         data = os.read(sys.stdin.fileno(), 64)
-        if data == b"\x1b":
-            # A bare escape is the quit key; an escape sequence is an arrow key
-            # and means nothing here.
-            if select.select([sys.stdin], [], [], 0.02)[0]:
-                os.read(sys.stdin.fileno(), 64)
-                return []
-            return ["\x1b"]
-        return list(data.decode("utf-8", "ignore"))
+        more = bool(select.select([sys.stdin], [], [], 0.02)[0])
+        keys = interpret_input(data, more)
+        while select.select([sys.stdin], [], [], 0.02)[0]:
+            os.read(sys.stdin.fileno(), 64)   # the rest of a sequence
+        return keys
 
 
 class TerminalFrontend:

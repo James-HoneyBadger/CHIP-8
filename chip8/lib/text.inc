@@ -164,23 +164,26 @@ t_num:
     LD V7, V1
     LD I, t_bcd
     LD B, V2            ; three decimal digits land at t_bcd
-    LD I, t_bcd
+    LD V9, 0            ; which digit, 0 to 2
     LD V4, 3            ; digits left to look at
+    LD V8, 0            ; nothing printed yet
 t_num_loop:
-    LD V0, [I]          ; the next digit; I moves past it
+    ; The address is worked out again every time round: drawing a glyph takes
+    ; I for the font, so the digit pointer cannot be kept in it.
+    LD I, t_bcd
+    ADD I, V9
+    LD V0, [I]          ; the digit
     SE V0, 0
     JP t_num_show       ; a non-zero digit always shows
+    SE V8, 1
+    JP t_num_last       ; nothing printed yet, so this zero is a leading one
+    JP t_num_show       ; something has been printed: the zero belongs
+t_num_last:
     SE V4, 1
-    JP t_num_next       ; a zero shows only as the last digit
-    JP t_num_show
-t_num_next:
-    ADD V4, 0xFF        ; one fewer digit
-    SE V4, 0
-    JP t_num_loop
-    LD V0, V6
-    LD V1, V7
-    RET
+    JP t_num_next       ; suppress it
+    JP t_num_show       ; unless it is the only digit there is
 t_num_show:
+    LD V8, 1
     ADD V0, 0x30        ; '0' + digit
     LD V5, V0
     LD V0, V6
@@ -189,7 +192,14 @@ t_num_show:
     CALL t_char
     LD V6, V0
     LD V7, V1
-    JP t_num_next
+t_num_next:
+    ADD V9, 1
+    ADD V4, 0xFF        ; one fewer digit
+    SE V4, 0
+    JP t_num_loop
+    LD V0, V6
+    LD V1, V7
+    RET
 
 ; ---------------------------------------------------------------------------
 ; t_hex: draw a value 0-255 as two hexadecimal digits.

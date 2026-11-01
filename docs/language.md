@@ -132,6 +132,22 @@ An include is assembled where it appears and **once**: the same file included
 twice contributes one copy, so diamond includes are safe. Search order is the
 including file's own directory, then `chip8/lib`. Cycles are refused.
 
+**Put includes at the end of the listing.** The machine always begins executing
+at `0x200`, and an include is laid down where it appears, so an `LIB text` above
+your code puts the library at `0x200` and your program is never reached. Every
+listing here ends with its includes:
+
+```text
+start:
+    ...
+    JP start
+
+.string title "HELLO"
+
+LIB text
+LIB draw
+```
+
 Labels from an include are ordinary labels, so the standard library's are all
 prefixed (`t_`, `d_`, `m_`, `i_`) to stay out of your way. An error inside an
 include is reported against *that file's* line, not yours:
@@ -152,7 +168,7 @@ given the address in V4 and V5 by hand; these write that for you.
 | --- | --- |
 | `.print NAME` | `LD V4, NAME_hi` · `LD V5, NAME_lo` · `CALL t_print` |
 | `.printc NAME` | the same, plus `LD V2, NAME_len` and `CALL t_center` |
-| `.num` | `CALL t_num` |
+| `.num` | `CALL t_num` — no operand: the value is in V2 |
 
 ---
 

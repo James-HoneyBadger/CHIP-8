@@ -33,6 +33,25 @@ def _load(emulator: Chip8Emulator, path: str) -> bool:
     return True
 
 
+#: Names for the keys a game is most likely to want, so a script does not have to
+#: know which hex digit its author chose. `fire` is 5 because that is the middle
+#: of the direction square on the keypad.
+KEY_NAMES = {
+    "up": "2",
+    "down": "8",
+    "left": "4",
+    "right": "6",
+    "fire": "5",
+}
+
+
+def parse_keys(text: str) -> int:
+    """A key literal with names allowed: ``right`` is ``6``, ``1F`` is both."""
+
+    expanded = "".join(KEY_NAMES.get(word.lower(), word) for word in text.split())
+    return parse_key_mask(expanded)
+
+
 def parse_schedule(spec: str, attribute: str) -> list[tuple[int, int, int, bool]]:
     """``KEY@FRAME,KEY@FRAME`` into (frame, key, mask, down) events.
 
@@ -53,7 +72,7 @@ def parse_schedule(spec: str, attribute: str) -> list[tuple[int, int, int, bool]
             number = int(frame.strip())
         except ValueError as failure:
             raise SystemExit(f"chip8: {attribute}: '{frame}' is not a frame") from failure
-        mask = parse_key_mask(keys)
+        mask = parse_keys(keys)
         if not mask:
             raise SystemExit(f"chip8: {attribute}: '{keys}' names no key")
         down = attribute == "--press"
@@ -76,7 +95,7 @@ def _seeded_keys(emulator: Chip8Emulator, literal: str) -> int:
     one later, so this is how a program that waits for a key gets one.
     """
 
-    mask = parse_key_mask(literal)
+    mask = parse_keys(literal)
     if not emulator.binary:
         mask |= keypad_seed(emulator.source.decode("latin-1"))
     return mask

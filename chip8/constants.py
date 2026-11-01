@@ -34,9 +34,8 @@ MIN_SPEED = 1
 #: Fast enough for a listing that computes, still bounded so one frame cannot
 #: monopolise the frontend.
 MAX_SPEED = 2000
-#: The whole-program run's limits, used by ``--headless``.
+#: How long a headless run goes before it stops: ten seconds at 60 Hz.
 MAX_FRAMES = 600
-MAX_STEPS = 1_000_000
 
 #: One rewind snapshot every quarter of a second: fine enough to step through
 #: the moment something went wrong, coarse enough that a minute of play stays

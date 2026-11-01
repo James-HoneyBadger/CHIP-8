@@ -740,6 +740,14 @@ def expand_pseudo(text: str) -> list[str] | None:
     if mnemonic not in PSEUDO:
         return None
     operands = [] if split < 0 else split_operands(text[split + 1 :])
+    if mnemonic == ".NUM":
+        # The value is in V2; a name here would be silently ignored, so it is
+        # refused instead of assembling something that does not use it.
+        if operands:
+            raise Chip8Error(
+                ".num takes no operand; put the value in V2 and write `.num`"
+            )
+        return ["CALL t_num"]
     if not operands:
         raise Chip8Error(f"{mnemonic} takes a string name")
     name = operands[0]
@@ -752,8 +760,6 @@ def expand_pseudo(text: str) -> list[str] | None:
             f"LD V5, {name}_lo",
             "CALL t_center",
         ]
-    if mnemonic == ".NUM":
-        return [f"CALL t_num"]
     return None  # pragma: no cover
 
 
