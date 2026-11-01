@@ -1,0 +1,214 @@
+; LIFE -- Conway's Game of Life, sixteen by eight cells of four pixels each.
+; speed 2000
+;
+; Two grids of 180 bytes. They are 18 wide and 10 tall, and the extra row and
+; column on each side is *dead padding*: because the border can never be born,
+; counting a cell's neighbours is eight loads at fixed offsets with no bounds
+; check anywhere. That is the whole trick of this program, and it is why the
+; inner loop is short enough to run on a machine with no index register.
+;
+;     .   .   .   .   .        a cell at (x, y) is at 18 * (y + 1) + x + 1
+;     .   #   #   .   .        and its eight neighbours are at
+;     .   #   .   .   .          -19 -18 -17
+;     .   .   .   .   .           -1   .   +1
+;     .   .   .   .   .          +17 +18 +19
+;
+; Nothing computes next to anything: `ga` is read, `gb` is written, and then
+; `gb` is copied back over `ga`, because the machine has no way to keep a
+; pointer in a register and swap two of them.
+;
+; Run it at 2000 opcodes a frame: `chip8 run life.ch8 --speed 2000`.
+
+start:  CLS
+        CALL lf_seed
+        LD V0, 30
+        LD DT, V0
+        CALL lf_draw
+main:
+    LD V0, DT
+    SE V0, 0
+    JP main
+    LD V0, 2
+    LD DT, V0
+    CALL lf_generate
+    CALL lf_copy_back
+    CALL lf_alive            ; a small grid does die out; start again if it has
+    CALL lf_draw
+    JP main
+
+; ---------------------------------------------------------------------------
+; lf_seed: a random soup in the live area, and nothing in the padding.
+; ---------------------------------------------------------------------------
+lf_seed:
+    LD V8, 19                ; the first live cell: row 1, column 1
+    LD V9, 8                 ; eight rows
+lf_seed_row:
+    LD VA, 16                ; sixteen cells a row
+lf_seed_cell:
+    RND V0, 0x01
+    LD I, ga
+    ADD I, V8
+    LD [I], V0
+    ADD V8, 1
+    ADD VA, 0xFF
+    SE VA, 0
+    JP lf_seed_cell
+    ADD V8, 2                ; step over the right-hand padding
+    ADD V9, 0xFF
+    SE V9, 0
+    JP lf_seed_row
+    RET
+
+; ---------------------------------------------------------------------------
+; lf_generate: every live cell, from the rules, into the other grid.
+; ---------------------------------------------------------------------------
+lf_generate:
+    LD V8, 19
+    LD V9, 8
+lf_gen_row:
+    LD VA, 16
+lf_gen_cell:
+    ; -- count the neighbours, from a table of the eight offsets ----------
+    LD VB, 0
+    LD V6, 0
+lf_gen_count:
+    LD I, lf_deltas
+    ADD I, V6
+    LD V0, [I]               ; the offset
+    LD I, ga
+    ADD I, V8
+    ADD I, V0
+    LD V0, [I]               ; the neighbour
+    ADD VB, V0
+    ADD V6, 1
+    LD V0, 7
+    SUB V0, V6               ; VF = 1 while there are offsets left
+    SE VF, 0
+    JP lf_gen_count
+    ; -- the rules --------------------------------------------------------
+    ; The cell is read into V0 and not V5 or above: `LD Vx, [I]` loads every
+    ; register from V0 to Vx, so asking for a high one to read a single byte
+    ; would wipe the counters this loop runs on.
+    LD I, ga
+    ADD I, V8
+    LD V0, [I]               ; the cell itself
+    LD V5, 0                 ; the cell next generation, dead by default
+    SE V0, 1
+    JP lf_birth
+    SE VB, 2                 ; alive: two or three neighbours keep it
+    JP lf_two
+    LD V5, 1
+    JP lf_store
+lf_two:
+    SE VB, 3
+    JP lf_store
+    LD V5, 1
+    JP lf_store
+lf_birth:
+    SE VB, 3                 ; dead: exactly three neighbours make it live
+    JP lf_store
+    LD V5, 1
+lf_store:
+    LD I, gb
+    ADD I, V8
+    LD V0, V5                ; Fx55 writes V0 upwards, so the value goes in V0
+    LD [I], V0               ; exactly one byte, which is one cell
+    ADD V8, 1
+    ADD VA, 0xFF
+    SE VA, 0
+    JP lf_gen_cell
+    ADD V8, 2
+    ADD V9, 0xFF
+    SE V9, 0
+    JP lf_gen_row
+    RET
+
+; ---------------------------------------------------------------------------
+; lf_copy_back: the new grid becomes the old one, four bytes at a time.
+; ---------------------------------------------------------------------------
+lf_copy_back:
+    LD V8, 0
+lf_copy_loop:
+    LD I, gb
+    ADD I, V8
+    LD V3, [I]               ; four bytes, and I moves past them
+    LD I, ga
+    ADD I, V8
+    LD [I], V3
+    ADD V8, 4
+    LD V0, 176
+    SUB V0, V8               ; VF = 1 while there is a whole chunk left
+    SE VF, 0
+    JP lf_copy_loop
+    RET
+
+; ---------------------------------------------------------------------------
+; lf_alive: if nothing is left, a new soup. Four bytes at a time, ORed
+; together: any bit left anywhere means the pattern is still going.
+; ---------------------------------------------------------------------------
+lf_alive:
+    LD V8, 0
+    LD V4, 0
+lf_alive_loop:
+    LD I, ga
+    ADD I, V8
+    LD V3, [I]
+    OR V4, V3
+    ADD V8, 4
+    LD V0, 176
+    SUB V0, V8               ; VF = 1 while there is a whole chunk left
+    SE VF, 0
+    JP lf_alive_loop
+    SNE V4, 0
+    CALL lf_seed
+    RET
+
+; ---------------------------------------------------------------------------
+; lf_draw: a clear screen and a block for every live cell.
+; The counters live in V8 and up, because the drawing routines use V0-V4.
+; ---------------------------------------------------------------------------
+lf_draw:
+    CLS
+    LD V8, 19
+    LD V9, 0                 ; cell row, 0-7
+lf_draw_row:
+    LD VB, 0                 ; cell column, 0-15
+lf_draw_cell:
+    LD I, ga
+    ADD I, V8
+    LD V0, [I]
+    SNE V0, 0
+    JP lf_draw_next
+    LD V0, VB                ; x = 4 * column
+    ADD V0, V0
+    ADD V0, V0
+    LD V1, V9                ; y = 4 * row
+    ADD V1, V1
+    ADD V1, V1
+    LD V2, 4
+    LD V3, 4
+    CALL d_fill
+lf_draw_next:
+    ADD V8, 1
+    ADD VB, 1
+    LD V0, 15
+    SUB V0, VB               ; VF = 1 while there are cells left in the row
+    SE VF, 0
+    JP lf_draw_cell
+    ADD V8, 2
+    ADD V9, 1
+    LD V0, 7
+    SUB V0, V9
+    SE VF, 0
+    JP lf_draw_row
+    RET
+
+; The eight neighbour offsets, as bytes that wrap: -19 is 0xED.
+.bytes lf_deltas
+    0xED,0xEE,0xEF,0xFF,0x01,0x11,0x12,0x13
+.end
+; Eighteen wide, ten tall: a one-cell dead border all the way round.
+.zero ga 180
+.zero gb 180
+
+.include draw

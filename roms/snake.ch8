@@ -1,0 +1,382 @@
+; SNAKE -- the classic, in sixty-four bytes of body.
+; speed 60
+;
+; The grid is sixteen cells by eight, four pixels a cell, and a cell is one
+; byte: `y * 16 + x`. The body is a ring buffer of sixty-four of those, with a
+; head index and a tail index that walk round it, which is why the snake never
+; has to move its own bytes: a step writes one cell and (unless it just ate)
+; erases one.
+;
+; Three things in here are worth reading:
+;
+; * **Erasing is drawing.** `d_xfill` draws with XOR, so drawing the tail cell a
+;   second time is what removes it. There is no erase instruction.
+; * **A reversal is not allowed.** The direction keys are compared against the
+;   current direction and a difference of two (mod four) is ignored, or the
+;   snake would eat itself on the spot.
+; * **Food is checked against the body**, because a meal that lands inside the
+;   snake is a game that can never end.
+;
+; Keys: 2 up, 8 down, 4 left, 6 right, exactly the digits the keypad shows.
+; Run it at 60 opcodes a frame: `chip8 run snake.ch8 --speed 60`.
+
+start:  CLS
+        ; The head and tail are *indices into the ring*, not cells: the ring is
+        ; sixty-four bytes, so they run 0-63 while a cell runs 0-127.
+        LD I, sn_state
+        LD V0, 8             ; the slot the head is in
+        LD V1, 6             ; the slot the tail is in, two cells behind
+        LD V2, 3             ; three cells long
+        LD V3, 1             ; heading right
+        LD [I], V3           ; sn_state = [head, tail, len, dir]
+        LD I, body
+        ADD I, V1            ; the body starts at the tail slot
+        LD V0, 70            ; and the cells are 70, 71, 72
+        LD V1, 71
+        LD V2, 72
+        LD [I], V2           ; body[6..8] = 70, 71, 72
+        LD I, sn_more
+        LD V0, 0
+        LD V1, 0
+        LD [I], V1           ; sn_more = [food, score]
+        LD I, sn_over
+        LD V0, 0
+        LD [I], V0           ; and it is not over
+        CALL sn_place_food
+        CALL sn_draw_all
+        LD V0, 40
+        LD DT, V0
+main:
+    LD V0, DT
+    SE V0, 0
+    JP main
+    LD V0, 2
+    LD DT, V0            ; six steps a second at 60 Hz
+    CALL sn_input
+    CALL sn_step
+    LD I, sn_more
+    LD V0, [I]           ; the food
+    LD V1, V0
+    LD V0, 0
+    ; sn_step leaves 1 in sn_over when the game ended
+    LD I, sn_over
+    LD V0, [I]               ; Fx65 puts the byte at I in V0, not in V2
+    SE V0, 0
+    JP dead
+    JP main
+dead:
+    LD V0, 3
+    LD DT, V0
+    CALL sn_game_over
+    JP start
+
+; ---------------------------------------------------------------------------
+; sn_input: a direction key, if one is held, unless it is a reversal.
+; ---------------------------------------------------------------------------
+sn_input:
+    CALL i_poll
+    SNE V0, 0xFF             ; nothing held: nothing to do
+    RET
+    LD V8, V0                ; the key
+    LD I, sn_state
+    LD V3, [I]               ; V0-V3 = head, tail, len, dir
+    LD V9, V3                ; the direction now
+    LD V4, 9                 ; 9 means "not a direction key"
+    LD V5, 2
+    SE V8, V5
+    JP sn_in_8
+    LD V4, 0                 ; up
+    JP sn_in_check
+sn_in_8:
+    LD V5, 8
+    SE V8, V5
+    JP sn_in_4
+    LD V4, 2                 ; down
+    JP sn_in_check
+sn_in_4:
+    LD V5, 4
+    SE V8, V5
+    JP sn_in_6
+    LD V4, 3                 ; left
+    JP sn_in_check
+sn_in_6:
+    LD V5, 6
+    SE V8, V5
+    RET
+    LD V4, 1                 ; right
+sn_in_check:
+    LD V5, 9
+    SNE V4, V5               ; not a direction key
+    RET
+    LD V5, V9
+    ADD V5, 2
+    LD V6, 3
+    AND V5, V6               ; the direction that would be a reversal
+    SNE V5, V4
+    RET
+    LD I, sn_state
+    LD V5, 3
+    ADD I, V5
+    LD V0, V4
+    LD [I], V0               ; sn_state[3] = the new direction
+    RET
+
+; ---------------------------------------------------------------------------
+; sn_step: one move.
+; ---------------------------------------------------------------------------
+sn_step:
+    LD I, sn_state
+    LD V3, [I]               ; V0-V3 = head, tail, len, dir
+    LD V8, V0                ; the head index
+    LD V9, V1                ; the tail index
+    LD VA, V2                ; how long the snake is
+    LD VB, V3                ; the direction
+    LD I, body
+    ADD I, V8
+    LD V0, [I]               ; the head's cell
+    LD VC, V0
+    ; -- the walls. Left and right need the column; up and down do not,
+    ;    because a cell that leaves the grid comes back past 127.
+    LD V5, 0x0F
+    LD V6, VC
+    AND V6, V5               ; the column the head is in
+    LD V5, VB
+    SE V5, 1
+    JP sn_step_left
+    LD V5, 15                ; heading right: column 15 is the wall
+    SNE V6, V5
+    JP sn_step_over
+    JP sn_step_new
+sn_step_left:
+    LD V5, 3
+    SE V5, VB
+    JP sn_step_new           ; up or down: the range check below is enough
+    SE V6, 0                 ; heading left: column 0 is the wall
+    JP sn_step_new
+    JP sn_step_over
+sn_step_new:
+    LD V5, VB
+    SE V5, 0
+    JP sn_new_noup
+    ADD VC, 0xF0             ; up is -16
+    JP sn_new_ready
+sn_new_noup:
+    SE V5, 1
+    JP sn_new_noright
+    ADD VC, 1
+    JP sn_new_ready
+sn_new_noright:
+    SE V5, 2
+    JP sn_new_nodown
+    ADD VC, 0x10             ; down is +16
+    JP sn_new_ready
+sn_new_nodown:
+    ADD VC, 0xFF             ; left is -1
+sn_new_ready:
+    LD V5, 127
+    SUB V5, VC               ; VF = 1 while the cell is on the grid
+    SE VF, 1
+    JP sn_step_over
+    ; -- itself. sn_scan takes its argument in V8, so the head index goes to
+    ;    VD for the duration and comes back afterwards.
+    LD VD, V8
+    LD V8, VC
+    CALL sn_scan
+    LD V8, VD
+    SE V6, 0
+    JP sn_step_over
+    ; -- the food
+    LD I, sn_more
+    LD V0, [I]
+    SE V0, VC
+    JP sn_step_plain
+    ; ate: one longer, one more point, and a new meal
+    LD I, sn_state
+    LD V3, [I]
+    ADD V2, 1
+    LD [I], V3               ; sn_state = [head, tail, len + 1, dir]
+    LD I, sn_more
+    LD V0, [I]
+    ADD V0, 1
+    LD I, sn_more
+    LD V5, 1
+    ADD I, V5
+    LD [I], V0               ; the score
+    CALL sn_place_food
+    JP sn_step_head
+sn_step_plain:
+    ; erase the tail, which is drawn with XOR so drawing it again removes it
+    LD I, body
+    ADD I, V9
+    LD V0, [I]
+    LD V1, 1
+    CALL sn_cell
+    ADD V9, 1
+    LD V5, 63
+    AND V9, V5               ; the ring wraps at sixty-four
+    LD I, sn_state
+    LD V5, 1
+    ADD I, V5
+    LD V0, V9
+    LD [I], V0               ; the new tail
+sn_step_head:
+    ADD V8, 1                ; the next slot is where the new head goes
+    LD V5, 63
+    AND V8, V5               ; the ring wraps at sixty-four
+    LD I, body
+    ADD I, V8
+    LD V0, VC
+    LD [I], V0               ; the new head cell
+    LD V0, VC
+    LD V1, 0
+    CALL sn_cell             ; and draw it
+    LD I, sn_state
+    LD V0, V8
+    LD [I], V0               ; the new head index
+    RET
+sn_step_over:
+    LD I, sn_over
+    LD V0, 1
+    LD [I], V0
+    RET
+
+; ---------------------------------------------------------------------------
+; sn_cell: V0 = a cell, V1 = 0 to draw it and 1 to erase it.
+; Clobbers V0-V7 and leaves V8 upwards alone, because its callers keep the
+; snake's head, tail and length up there. That contract is the whole reason
+; this routine looks the way it does.
+; ---------------------------------------------------------------------------
+sn_cell:
+    LD V6, V0
+    LD V7, V1
+    LD V2, 0x0F
+    AND V0, V2               ; the column
+    LD V2, V6
+    SHR V2
+    SHR V2
+    SHR V2
+    SHR V2                   ; the row
+    LD V1, V2
+    ADD V0, V0
+    ADD V0, V0               ; four pixels a cell
+    ADD V1, V1
+    ADD V1, V1
+    LD V2, 4
+    LD V3, 4
+    SE V7, 0
+    JP sn_cell_erase
+    CALL d_fill
+    RET
+sn_cell_erase:
+    CALL d_xfill
+    RET
+
+; ---------------------------------------------------------------------------
+; sn_scan: is the cell in V8 on the snake? V6 = 1 if it is.
+; ---------------------------------------------------------------------------
+sn_scan:
+    LD I, sn_state
+    LD V3, [I]               ; V0 = head, V1 = tail, V2 = len, V3 = dir
+    LD V4, V1                ; walk from the tail
+    LD V5, V2                ; for as many cells as there are
+    LD V6, 0
+sn_scan_loop:
+    LD I, body
+    ADD I, V4
+    LD V0, [I]               ; one byte, so the counters above survive
+    SE V0, V8
+    JP sn_scan_next
+    LD V6, 1
+sn_scan_next:
+    ADD V4, 1
+    LD V0, 63
+    AND V4, V0
+    ADD V5, 0xFF
+    SE V5, 0
+    JP sn_scan_loop
+    RET
+
+; ---------------------------------------------------------------------------
+; sn_place_food: a cell that is not on the snake.
+; ---------------------------------------------------------------------------
+sn_place_food:
+sn_food_try:
+    RND V0, 0x7F
+    LD V8, V0
+    CALL sn_scan
+    SE V6, 0
+    JP sn_food_try
+    LD I, sn_more
+    LD V0, V8
+    LD [I], V0
+    LD V0, V8
+    LD V1, 0
+    CALL sn_cell             ; draw the meal
+    RET
+
+; ---------------------------------------------------------------------------
+; sn_draw_all: the three cells the snake starts with.
+; ---------------------------------------------------------------------------
+sn_draw_all:
+    LD I, sn_state
+    LD V3, [I]
+    LD V8, V1                ; the tail index; V8 and up survive sn_cell
+    LD V9, V2                ; the length
+sn_draw_loop:
+    LD I, body
+    ADD I, V8
+    LD V0, [I]
+    LD V1, 0
+    CALL sn_cell
+    ADD V8, 1
+    LD V0, 63
+    AND V8, V0
+    ADD V9, 0xFF
+    SE V9, 0
+    JP sn_draw_loop
+    RET
+
+; ---------------------------------------------------------------------------
+; sn_game_over: the score, and how to go again.
+; ---------------------------------------------------------------------------
+sn_game_over:
+    CLS
+    LD V1, 8
+    .printc over_text
+    LD I, sn_more
+    LD V1, [I]               ; V0 = the food, V1 = the score
+    LD V8, V1
+    LD V0, 4
+    LD V1, 16
+    .print score_text
+    LD V0, 26
+    LD V1, 16
+    LD V2, V8
+    CALL t_num
+    LD V1, 24
+    .printc again_text
+    CALL i_wait
+    CALL i_wait_release
+    RET
+
+; --- text ------------------------------------------------------------------
+.string over_text "GAME OVER"
+.string score_text "SCORE"
+.string again_text "PRESS A KEY"
+
+; --- state -----------------------------------------------------------------
+.bytes sn_state
+    8, 6, 3, 1
+.end
+.bytes sn_more
+    0, 0
+.end
+.bytes sn_over
+    0
+.end
+.zero body 64
+
+.include text
+.include draw
+.include math
+.include input

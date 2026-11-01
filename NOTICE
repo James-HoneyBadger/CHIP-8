@@ -1,0 +1,41 @@
+CHIP-8
+======
+
+This program is derived from the CHIP-8 machine in Time Warp Studio
+(https://github.com/James-HoneyBadger/Time_Warp_Studio), which is MIT licensed.
+
+Where the behaviour, the constants and the words came from:
+
+  Time Warp Studio                                  This repository
+  ------------------------------------------------- -----------------------------
+  native/src/lang/chip8.cpp                         chip8/machine.py
+      the Chip8Machine: opcodes, quirks, fonts          (behaviour ported 1:1)
+  native/include/timewarp/lang/chip8.hpp            chip8/machine.py
+      constants, Chip8State, the machine's interface    (constants.py)
+  native/src/lang/chip8.cpp (assemble_chip8)        chip8/assembler.py
+      the two-pass assembler and the ROM loader
+  native/src/ui/chip8_emulator.cpp                  chip8/emulator.py
+      Chip8Emulator: frames, speed, rewind
+  native/src/ui/chip8_screen.cpp                    chip8/frontend_terminal.py
+      keypad mapping, colours                           chip8/frontend_x11.py
+  docs/chip8/README.md                              README.md
+  docs/chip8/instruction-set.md                     docs/instruction-set.md
+  docs/chip8/assembly.md                            docs/assembly.md
+  Examples/chip8/*.ch8                              examples/*.ch8 (copied)
+  docs/chip8/README.md (the machine's behaviour)     docs/instruction-set.md
+
+New in this repository, and not from Time Warp Studio:
+
+  chip8/lib/*.inc            the standard library: text, draw, math, input,
+                             and the 4x5 ASCII font that tools/make_font.py
+                             generates
+  roms/*.ch8                 hello, clock, life, plot, snake
+  chip8/assembler.py         the linker: data section, .include/LIB, .org,
+                             .print/.printc, _hi/_lo/_len names
+  chip8/frontend_terminal.py the terminal frontend
+  chip8/frontend_x11.py      the X11 frontend (libX11 through ctypes)
+  chip8/screen.py            the framebuffer renderer
+  chip8/inspector.py         the text inspector
+  chip8/librarian.py         the program catalogue and the `new` template
+  chip8/cli.py               run, library, new, dev, asm, info
+  roms/, tests/, tools/

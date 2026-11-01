@@ -1,0 +1,103 @@
+; CLOCK -- a clock with no clock in it.
+; speed 40
+;
+; CHIP-8 has no real-time clock and no way to ask what time it is. What it does
+; have is a delay timer that counts down sixty times a second whether a program
+; looks at it or not, which is a one-second clock if you reload it with sixty.
+; That is what this does: every time the timer reaches zero the seconds go up,
+; and the seconds carry into minutes and minutes into hours.
+;
+; It is also the shortest useful example of the text library: three numbers, two
+; colons, and a heading, all redrawn once a second.
+
+start:  LD I, cl_time
+        LD V0, 12            ; hours
+        LD V1, 0             ; minutes
+        LD V2, 0             ; seconds
+        LD [I], V2           ; cl_time = [h, m, s]
+        LD V0, 60
+        LD DT, V0            ; the one-second tick starts now
+        CALL draw
+main:
+    LD V0, DT
+    SE V0, 0                 ; wait for the second to end
+    JP main
+    LD V0, 60
+    LD DT, V0                ; start the next one
+    CALL tick
+    CALL draw
+    JP main
+
+; ---------------------------------------------------------------------------
+; tick: add one second, carrying into minutes and hours.
+; ---------------------------------------------------------------------------
+tick:
+    LD I, cl_time
+    LD V2, [I]               ; V0 = hours, V1 = minutes, V2 = seconds
+    ADD V2, 1
+    LD V3, 59
+    SUB V3, V2               ; VF = 1 while seconds <= 59
+    SE VF, 0
+    JP tick_store
+    LD V2, 0
+    ADD V1, 1
+    LD V3, 59
+    SUB V3, V1               ; VF = 1 while minutes <= 59
+    SE VF, 0
+    JP tick_store
+    LD V1, 0
+    ADD V0, 1
+    LD V3, 23
+    SUB V3, V0               ; VF = 1 while hours <= 23
+    SE VF, 0
+    JP tick_store
+    LD V0, 0
+tick_store:
+    LD I, cl_time
+    LD [I], V2
+    RET
+
+; ---------------------------------------------------------------------------
+; draw: the whole face, once a second.
+; ---------------------------------------------------------------------------
+draw:
+    CLS
+    LD V1, 4
+    .printc heading
+    LD I, cl_time
+    LD V2, [I]               ; V0 = h, V1 = m, V2 = s
+    LD V8, V0                ; the library clobbers everything, so park them
+    LD V9, V1
+    LD VA, V2
+    LD V0, 6
+    LD V1, 14
+    LD V2, V8
+    CALL t_num
+    LD V0, 17
+    LD V1, 14
+    LD V2, 0x3A
+    CALL t_char
+    LD V0, 22
+    LD V1, 14
+    LD V2, V9
+    CALL t_num
+    LD V0, 33
+    LD V1, 14
+    LD V2, 0x3A
+    CALL t_char
+    LD V0, 38
+    LD V1, 14
+    LD V2, VA
+    CALL t_num
+    LD V1, 24
+    .printc hint
+    RET
+
+.string heading "THE TIME"
+.string hint "60 TICKS A SECOND"
+.bytes cl_time
+    12, 0, 0
+.end
+
+.include text
+.include draw

@@ -1,0 +1,167 @@
+; HELLO -- a title card for the machine.
+; speed 30
+;
+; Two cards, alternating: the first is a title with the keypad drawn on it, the
+; second is what the machine is made of. A scanner runs along the bottom the
+; whole time, which is the cheapest way to show that a picture is moving: one
+; pixel off, one pixel on, and the XOR that draws it also erases it.
+;
+; Worth reading if you are writing your own:
+;
+; * `.printc` centres a string: `.string` defines NAME_len, and the routine
+;   works the column out from the length.
+; * V0 and V1 are the text cursor. `.print` leaves them after the last
+;   character, so two prints in a row read as one line.
+; * A value that has to survive a call goes in memory, because every routine in
+;   the library clobbers the registers. `st` below holds the scanner.
+;
+; Run it at 30 opcodes a frame or faster: `chip8 run hello.ch8 --speed 30`.
+
+start:  LD I, st
+        LD V0, 4             ; the scanner starts near the left
+        LD V1, 1             ; and walks right
+        LD [I], V1           ; st = [x, direction]
+        CALL card_one
+        LD V0, 0
+        LD V1, 0
+        JP main
+
+; ---------------------------------------------------------------------------
+; The loop: move the scanner, notice a key, swap the card.
+; ---------------------------------------------------------------------------
+main:
+    LD V0, 1
+    LD DT, V0                ; one scanner step per tick, so it paces itself
+    CALL scanner
+    CALL i_poll
+    SE V0, 0xFF
+    JP flip
+    JP main
+flip:
+    CALL i_wait_release
+    CALL card_two
+wait_again:
+    LD V0, 1
+    LD DT, V0
+    CALL scanner
+    CALL i_poll
+    SE V0, 0xFF
+    JP flip_back
+    JP wait_again
+flip_back:
+    CALL i_wait_release
+    CALL card_one
+    LD V0, 0
+    LD V1, 0
+    JP main
+
+; ---------------------------------------------------------------------------
+; scanner: move the dot one pixel, at the delay timer's pace.
+; The dot is drawn by XOR, so drawing it where it already is erases it: one
+; plot to clear the old position, one to light the new one.
+; ---------------------------------------------------------------------------
+scanner:
+    LD V0, DT                ; hold still until the tick has gone
+    SNE V0, 0
+    RET
+    LD I, st
+    LD V1, [I]               ; V0 = x, V1 = direction
+    LD V8, V0                ; the library clobbers everything, so the state
+    LD V9, V1                ; of the scanner lives in registers it cannot see
+    LD V0, V8
+    LD V1, 29
+    CALL d_unplot            ; take the dot away from where it was
+    LD V2, V8
+    ADD V2, V9               ; x += direction
+    LD V3, 61
+    SUB V3, V2               ; VF = 1 while x <= 61
+    SE VF, 1
+    JP scanner_turn
+    LD V3, V2
+    LD V5, 4
+    SUB V3, V5               ; VF = 1 while x >= 4
+    SE VF, 0
+    JP scanner_store
+scanner_turn:
+    LD V3, 1
+    SUB V3, V9               ; VF = 1 when it was heading right
+    SE VF, 1
+    JP scanner_left
+    LD V2, 61
+    LD V9, 0xFF              ; turn round at the right edge
+    JP scanner_store
+scanner_left:
+    LD V2, 4
+    LD V9, 1                 ; turn round at the left edge
+scanner_store:
+    LD V0, V2
+    LD V1, V9
+    LD I, st
+    LD [I], V1               ; st = [new x, new direction]
+    LD V0, V2
+    LD V1, 29
+    CALL d_plot              ; light the new position
+    RET
+
+; ---------------------------------------------------------------------------
+; The two cards.
+; ---------------------------------------------------------------------------
+card_one:
+    CLS
+    LD V0, 0
+    LD V1, 0
+    LD V2, 64
+    LD V3, 32
+    CALL d_rect
+    LD V1, 2
+    .printc tag_a
+    LD V1, 8
+    .printc tag_b
+    LD V1, 16
+    .printc title
+    LD V1, 24
+    .printc subtitle
+    RET
+
+card_two:
+    CLS
+    LD V0, 0
+    LD V1, 0
+    LD V2, 64
+    LD V3, 32
+    CALL d_rect
+    LD V0, 6
+    LD V1, 2
+    .print spec_head
+    LD V0, 6
+    LD V1, 9
+    .print spec_1
+    LD V0, 6
+    LD V1, 15
+    .print spec_2
+    LD V0, 6
+    LD V1, 21
+    .print spec_3
+    LD V0, 6
+    LD V1, 27
+    .print spec_4
+    RET
+
+; --- text ------------------------------------------------------------------
+.string tag_a "A VIRTUAL"
+.string tag_b "COMPUTER"
+.string title "CHIP-8"
+.string subtitle "SINCE 1977"
+.string spec_head "WHAT IT IS"
+.string spec_1 "4096 BYTES"
+.string spec_2 "16 REGISTERS"
+.string spec_3 "64X32 PIXELS"
+.string spec_4 "16 KEYS"
+
+.bytes st
+    0, 0
+.end
+
+.include text
+.include draw
+.include input
