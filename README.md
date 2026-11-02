@@ -1,8 +1,8 @@
-# CHIP-8
+# COSMAC VIP
 
-*A complete CHIP-8 computer: the machine, a linker, a standard library, text and
-graphics, twenty-three programs, and a toolkit for writing your own — all in
-Python with no dependencies.*
+*A COSMAC VIP emulator with a complete CHIP-8 system: the CDP1802 and the 1977
+interpreter as firmware, a linker, a standard library, twenty-three programs,
+and a desktop application — all in Python.*
 
 CHIP-8 is the 1977 virtual machine that made a computer out of four kilobytes:
 sixty-four by thirty-two pixels, sixteen keys, sixteen registers, two timers and
@@ -37,7 +37,8 @@ python3 -m chip8 dev mygame.ch8       # write it: save, and it reloads
 
 ## Quick start
 
-No installation, no dependencies — Python 3.10 or newer:
+No installation and nothing outside the standard library for the machine, the
+assembler and the terminal frontends — Python 3.10 or newer:
 
 ```sh
 python3 -m chip8 run examples/bounce.ch8
@@ -53,14 +54,35 @@ python3 -m chip8 run examples/hires.ch8 --frontend x11 --scale 8       # a 1024x
 python3 -m chip8 run examples/tour.ch8 --frontend headless --frames 600
 ```
 
-Installing it puts a `chip8` command on the path, which needs a virtual
-environment on systems that mark their Python as externally managed:
+The distribution is `cosmac-vip`. Installing it puts `chip8` and `cosmac-vip`
+on the path, which needs a virtual environment on systems that mark their
+Python as externally managed:
 
 ```sh
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 chip8 run examples/countdown.ch8
 ```
+
+---
+
+## The application
+
+The COSMAC VIP has its own window, built on the desktop's GTK 4:
+
+```sh
+python3 -m chip8 gui examples/catch.ch8
+# or, after installing:
+chip8-vip examples/catch.ch8
+```
+
+It is a front panel, not a picture of one: an on-screen hex keypad, a monitor
+for entering bytes into memory and setting the PC, the CHIP-8 registers and the
+1802's own D/DF/Q/IE/P/X while it runs, speed, rewind, and a switch between the
+native machine and the board's 64 × 128 display. `chip8 desktop install` puts it
+in the application menu and makes `.ch8` files open in it. GTK is a system
+package (`python3-gi` and `gir1.2-gtk-4.0` on Debian and Ubuntu); everything
+else remains standard library.
 
 ---
 
@@ -334,10 +356,13 @@ to lose the game that is running.
 | [`chip8/emulator.py`](chip8/emulator.py) | The frame loop, speed, keypad, rewind |
 | [`chip8/frontend_terminal.py`](chip8/frontend_terminal.py) | The screen as half-block characters |
 | [`chip8/frontend_x11.py`](chip8/frontend_x11.py) | A real window, through libX11 and `ctypes` |
+| [`chip8/frontend_web.py`](chip8/frontend_web.py) | The screen in a browser, for Wayland, remote and headless machines |
+| [`chip8/gui.py`](chip8/gui.py) | The COSMAC VIP desktop application: keypad, monitor, registers |
+| [`chip8/desktop.py`](chip8/desktop.py) | The launcher, icon and MIME type `chip8 desktop install` writes |
 | [`chip8/inspector.py`](chip8/inspector.py) | Registers, memory, listing and status text |
 | [`chip8/screen.py`](chip8/screen.py) | The framebuffer as characters, with no terminal involved |
 | [`chip8/librarian.py`](chip8/librarian.py) | Finding programs and reading their headers |
-| [`chip8/cli.py`](chip8/cli.py) | `run`, `library`, `new`, `dev`, `asm`, `info`, `vip` |
+| [`chip8/cli.py`](chip8/cli.py) | `run`, `library`, `new`, `dev`, `asm`, `info`, `vip`, `gui`, `desktop` |
 | [`chip8/cosmac1802.py`](chip8/cosmac1802.py) | The CDP1802 processor, instruction by instruction |
 | [`chip8/vip.py`](chip8/vip.py) | The VIP board: memory, display, keypad, clock, and the emulator adapter |
 | [`chip8/vipfirmware.py`](chip8/vipfirmware.py) | The CHIP-8 interpreter as 1802 firmware, assembled from source |
@@ -360,7 +385,7 @@ machine has no idea which one is watching.
 python3 -m unittest discover -s tests -t .
 ```
 
-353 tests: every opcode and every quirk, every assembler encoding and refusal,
+372 tests: every opcode and every quirk, every assembler encoding and refusal,
 the linker and its data section, each library routine against the pixels it
 should set, the frame loop and its rewind, the renderers, the command line, and
 all twenty-three programs run for several seconds of emulated time — including

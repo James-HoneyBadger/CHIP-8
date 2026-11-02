@@ -806,6 +806,20 @@ class EmulatorTests(unittest.TestCase):
         emulator.begin_rewind()
         self.assertEqual(emulator.rewind_count, count)
 
+    def test_the_monitor_enters_a_program_by_hand(self):
+        emulator = self.emulator()
+        self.assertTrue(emulator.load_bytes(b"\x00\x00", "blank machine"))
+        for offset, byte in enumerate((0x60, 0x01, 0x00, 0x00)):  # LD V0,1; HALT
+            self.assertTrue(emulator.write_memory(0x200 + offset, byte))
+        self.assertEqual(emulator.read_memory(0x201), 0x01)
+        self.assertFalse(emulator.write_memory(0x1000, 0x00))
+        with self.assertRaises(Chip8Error):
+            emulator.read_memory(0x1000)
+        self.assertTrue(emulator.set_pc(0x200))
+        emulator.start()
+        emulator.advance_frame()
+        self.assertEqual(emulator.snapshot().v[0], 1)
+
     def test_the_machine_property_gives_the_frontends_a_sound_timer(self):
         emulator = self.emulator("start: LD V0, 9\n LD ST, V0\n HALT")
         emulator.start()

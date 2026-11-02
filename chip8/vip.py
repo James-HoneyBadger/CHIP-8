@@ -637,6 +637,30 @@ class VipEmulator:
     def keys(self) -> int:
         return self.vip.keys
 
+    # -- the board's memory, for a monitor ---------------------------------
+    def read_memory(self, address: int) -> int:
+        """The byte at *address*; only the board's RAM is readable."""
+
+        if not 0 <= address < VipMemory.RAM_TOP:
+            raise Chip8Error(f"0x{address:X} is outside the board's RAM")
+        return self.vip.memory.read(address)
+
+    def write_memory(self, address: int, value: int) -> bool:
+        """Store *value* in RAM; False for an address the board protects."""
+
+        if not 0 <= address < VipMemory.RAM_TOP:
+            return False
+        self.vip.memory.write(address, value & 0xFF)
+        return True
+
+    def set_pc(self, address: int) -> bool:
+        """Point the CHIP-8 program counter at *address* (the interpreter's R7)."""
+
+        if not 0 <= address <= 0xFFFF:
+            return False
+        self.vip.cpu.r[7] = address
+        return True
+
     # -- rewind -----------------------------------------------------------
     @property
     def rewind_count(self) -> int:

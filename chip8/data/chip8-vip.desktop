@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=COSMAC VIP
+GenericName=CHIP-8 Emulator
+Comment=Run CHIP-8 programs on an emulated COSMAC VIP
+Exec=@EXEC@ %f
+Icon=chip8-vip
+Terminal=false
+Categories=Game;Emulator;
+MimeType=application/x-chip8-rom;
+Keywords=chip8;cosmac;vip;emulator;1802;retro;
+StartupNotify=true

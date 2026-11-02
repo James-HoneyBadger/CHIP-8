@@ -27,6 +27,7 @@ from .constants import (
     CYCLES_PER_FRAME,
     FRAMES_PER_SECOND,
     MAX_SPEED,
+    MEMORY_SIZE,
     MIN_SPEED,
     PROGRAM_ADDRESS,
     REWIND_SNAPSHOTS,
@@ -250,6 +251,36 @@ class Chip8Emulator:
     @property
     def keys(self) -> int:
         return 0 if self.machine is None else self.machine.keys
+
+    # -- the machine's memory, for a monitor -------------------------------
+    def read_memory(self, address: int) -> int:
+        """The byte at *address*, for a memory view or a monitor."""
+
+        if self.machine is None:
+            raise Chip8Error("no program is loaded")
+        if not 0 <= address < MEMORY_SIZE:
+            raise Chip8Error(f"0x{address:X} is outside memory")
+        return self.machine.memory[address]
+
+    def write_memory(self, address: int, value: int) -> bool:
+        """Store *value* at *address*; False when it is outside memory."""
+
+        if self.machine is None:
+            raise Chip8Error("no program is loaded")
+        if not 0 <= address < MEMORY_SIZE:
+            return False
+        self.machine.memory[address] = value & 0xFF
+        return True
+
+    def set_pc(self, address: int) -> bool:
+        """Point the machine at *address*; False when it is outside memory."""
+
+        if self.machine is None:
+            raise Chip8Error("no program is loaded")
+        if not 0 <= address < MEMORY_SIZE:
+            return False
+        self.machine.pc = address
+        return True
 
     # -- rewind -----------------------------------------------------------
     @property

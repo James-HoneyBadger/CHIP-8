@@ -1,7 +1,7 @@
 # Instructions
 
-Getting the emulator running, in order, from nothing to a program you wrote
-yourself. About ten minutes.
+Getting the COSMAC VIP emulator running, in order, from nothing to a program you
+wrote yourself. About ten minutes.
 
 ---
 
@@ -12,9 +12,10 @@ yourself. About ten minutes.
 | Python | 3.10 or newer (`python3 --version`) |
 | Anything else | nothing. There are no dependencies to install |
 | A window, optionally | libX11, for `--frontend x11` (most Linux desktops have it) |
+| The application, optionally | GTK 4: `python3-gi` and `gir1.2-gtk-4.0` on Debian and Ubuntu |
 
 The terminal frontend and the headless mode work over SSH; the window needs a
-display.
+display, and so does the application.
 
 ---
 
@@ -61,6 +62,17 @@ python3 -m chip8 library --run snake            # one of them, at its own speed
 python3 -m chip8 run hello --frontend x11       # a window, explicitly
 python3 -m chip8 run life --frontend headless --frames 300 --show
 ```
+
+The same programs run on the machine CHIP-8 was written for:
+
+```sh
+python3 -m chip8 run bounce --platform vip      # a COSMAC VIP, emulated
+python3 -m chip8 gui bounce                     # the desktop application
+```
+
+`chip8 desktop install` puts the application in the menu and lets `.ch8` files
+open in it. Its monitor is how a program is typed into memory a byte at a time:
+see [the application](user-manual.md#application).
 
 ---
 

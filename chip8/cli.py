@@ -12,6 +12,7 @@ the CHIP-8 is emulated by emulated hardware rather than by the native machine.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -62,6 +63,21 @@ def _emulator(args: argparse.Namespace) -> Chip8Emulator:
     return emulator
 
 
+
+
+def _web_factory(args: argparse.Namespace):
+    """A way for the web frontend to rebuild the other platform mid-run."""
+
+    def make(platform: str, screen: str):
+        scope = argparse.Namespace(**vars(args))
+        scope.platform = platform
+        scope.screen = screen
+        emulator = _emulator(scope)
+        if not emulator.load_file(args.program):
+            raise Chip8Error(emulator.error)
+        return emulator
+
+    return make
 
 
 def _load(emulator: Chip8Emulator, path: str) -> bool:
@@ -209,6 +225,23 @@ def _dev(args: argparse.Namespace) -> int:
         view.watch = args.program
         with view:
             return view.run(start_running=not args.paused)
+    if frontend == "web":
+        from .frontend_web import WebFrontend
+
+        try:
+            view = WebFrontend(
+                emulator,
+                port=args.web_port,
+                open_browser=not args.no_browser,
+                make_emulator=_web_factory(args),
+                platform=args.platform,
+                screen_view=args.screen,
+                watch=args.program,
+            )
+        except OSError as failure:
+            print(f"chip8: {failure}", file=sys.stderr)
+            return 1
+        return view.run(start_running=not args.paused)
 
     if not sys.stdin.isatty():
         print("chip8: no terminal to read keys from", file=sys.stderr)
@@ -252,6 +285,10 @@ def _pick_frontend(requested: str) -> str:
 
     if frontend_x11.available():
         return "x11"
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        # A display exists but libX11 cannot talk to it (a bare Wayland
+        # session, or a missing library): the browser frontend still can.
+        return "web"
     return "headless"
 
 
@@ -344,6 +381,22 @@ def _run(args: argparse.Namespace) -> int:
             return 1
         with view:
             return view.run(start_running=not args.paused)
+    if frontend == "web":
+        from .frontend_web import WebFrontend
+
+        try:
+            view = WebFrontend(
+                emulator,
+                port=args.web_port,
+                open_browser=not args.no_browser,
+                make_emulator=_web_factory(args),
+                platform=args.platform,
+                screen_view=args.screen,
+            )
+        except OSError as failure:
+            print(f"chip8: {failure}", file=sys.stderr)
+            return 1
+        return view.run(start_running=not args.paused)
 
     if not sys.stdin.isatty():
         print(
@@ -464,19 +517,78 @@ def _vip(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_web_arguments(parser: argparse.ArgumentParser) -> None:
+    """The two knobs the browser frontend needs on a machine without a desktop."""
+
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=0,
+        metavar="N",
+        help="web frontend: port to listen on (default: any free port)",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="web frontend: print the address instead of opening a browser",
+    )
+
+
+def _gui(args: argparse.Namespace) -> int:
+    """The desktop application, started from ``chip8 gui``."""
+
+    from . import gui
+
+    argv: list[str] = []
+    if args.program:
+        argv.append(args.program)
+    argv += ["--platform", args.platform, "--screen", args.screen]
+    if args.speed is not None:
+        argv += ["--speed", str(args.speed)]
+    if args.seed is not None:
+        argv += ["--seed", str(args.seed)]
+    if args.paused:
+        argv.append("--paused")
+    return gui.main(argv)
+
+
+def _desktop(args: argparse.Namespace) -> int:
+    """Install or remove the COSMAC VIP application in the desktop."""
+
+    from . import desktop
+
+    if args.action == "install":
+        paths = desktop.install()
+        for path in paths:
+            print(f"installed {path}")
+        print("COSMAC VIP is now in the application menu; .ch8 files offer it too.")
+    else:
+        paths = desktop.uninstall()
+        for path in paths:
+            print(f"removed {path}")
+        if not paths:
+            print("nothing to remove")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="chip8",
-        description="A CHIP-8 emulator: the 1977 machine, its assembler and its keypad.",
+        description=(
+            "A COSMAC VIP emulator with a complete CHIP-8 system: the 1977 "
+            "machine, its assembler, its library and its keypad."
+        ),
     )
-    parser.add_argument("--version", action="version", version="chip8 1.0.0")
+    parser.add_argument(
+        "--version", action="version", version="cosmac-vip 1.0.0"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="load a program and run it")
     run.add_argument("program", help="a .ch8 listing or binary ROM")
     run.add_argument(
         "--frontend",
-        choices=("auto", "terminal", "x11", "headless"),
+        choices=("auto", "terminal", "x11", "web", "headless"),
         default="auto",
         help="where to draw the screen (default: wherever it fits)",
     )
@@ -498,6 +610,7 @@ def build_parser() -> argparse.ArgumentParser:
             "64x128 display (default: chip8)"
         ),
     )
+    _add_web_arguments(run)
     run.add_argument(
         "--speed",
         type=int,
@@ -571,7 +684,7 @@ def build_parser() -> argparse.ArgumentParser:
     library = sub.add_parser("library", help="list the bundled programs")
     library.add_argument("--run", metavar="NAME", help="run one at its own speed")
     library.add_argument(
-        "--frontend", choices=("auto", "terminal", "x11", "headless"), default="auto"
+        "--frontend", choices=("auto", "terminal", "x11", "web", "headless"), default="auto"
     )
     library.add_argument(
         "--platform",
@@ -588,6 +701,7 @@ def build_parser() -> argparse.ArgumentParser:
             "64x128 display (default: chip8)"
         ),
     )
+    _add_web_arguments(library)
     library.add_argument("--speed", type=int, default=CYCLES_PER_FRAME, metavar="N")
     library.add_argument("--scale", type=int, default=0)
     library.add_argument("--fps", type=int, default=30)
@@ -616,7 +730,7 @@ def build_parser() -> argparse.ArgumentParser:
     dev = sub.add_parser("dev", help="run a listing and reload it when it is saved")
     dev.add_argument("program", help="the listing to watch")
     dev.add_argument(
-        "--frontend", choices=("auto", "terminal", "x11", "headless"), default="auto"
+        "--frontend", choices=("auto", "terminal", "x11", "web", "headless"), default="auto"
     )
     dev.add_argument(
         "--platform",
@@ -633,6 +747,7 @@ def build_parser() -> argparse.ArgumentParser:
             "64x128 display (default: chip8)"
         ),
     )
+    _add_web_arguments(dev)
     dev.add_argument("--speed", type=int, default=CYCLES_PER_FRAME, metavar="N")
     dev.add_argument("--scale", type=int, default=0)
     dev.add_argument("--fps", type=int, default=30)
@@ -665,6 +780,31 @@ def build_parser() -> argparse.ArgumentParser:
         "--labels", action="store_true", help="list the interpreter's labels"
     )
     vip.set_defaults(handler=_vip)
+
+    gui = sub.add_parser("gui", help="run the COSMAC VIP desktop application")
+    gui.add_argument("program", nargs="?", help="a .ch8 listing or binary ROM")
+    gui.add_argument(
+        "--platform",
+        choices=("vip", "native"),
+        default="vip",
+        help="which machine to run (default: vip)",
+    )
+    gui.add_argument(
+        "--screen",
+        choices=("chip8", "vip"),
+        default="chip8",
+        help="the 64x32 CHIP-8 grid, or the board's own 64x128 display",
+    )
+    gui.add_argument("--speed", type=int, default=None, metavar="N")
+    gui.add_argument("--seed", type=int, default=None, metavar="N")
+    gui.add_argument("--paused", action="store_true", help="start paused")
+    gui.set_defaults(handler=_gui)
+
+    desktop = sub.add_parser(
+        "desktop", help="install or remove the COSMAC VIP desktop application"
+    )
+    desktop.add_argument("action", choices=("install", "uninstall"))
+    desktop.set_defaults(handler=_desktop)
     return parser
 
 

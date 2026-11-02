@@ -3,18 +3,30 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "chip8"
+name = "cosmac-vip"
 version = "1.0.0"
-description = "A CHIP-8 emulator, assembler and debugger: the 1977 virtual machine"
+description = "A COSMAC VIP emulator with a complete CHIP-8 system: the CDP1802, the 1977 interpreter as firmware, an assembler, a library and a desktop application"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-keywords = ["chip8", "chip-8", "emulator", "assembler", "superchip", "retro"]
+keywords = [
+    "cosmac",
+    "cosmac-vip",
+    "cdp1802",
+    "chip8",
+    "chip-8",
+    "emulator",
+    "assembler",
+    "superchip",
+    "retro",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Environment :: X11 Applications",
+    "Environment :: X11 Applications :: GTK",
     "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -27,6 +39,11 @@ classifiers = [
 
 [project.scripts]
 chip8 = "chip8.cli:main"
+cosmac-vip = "chip8.cli:main"
+chip8-vip = "chip8.gui:main"
 
 [tool.setuptools]
 packages = ["chip8"]
+
+[tool.setuptools.package-data]
+chip8 = ["data/*"]

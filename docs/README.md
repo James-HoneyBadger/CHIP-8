@@ -1,6 +1,7 @@
 # Documentation
 
-Five documents, and a reference shelf behind them. Start wherever you are:
+For the COSMAC VIP emulator and its complete CHIP-8 system. Five documents, and
+a reference shelf behind them. Start wherever you are:
 
 | if you want to | read |
 | --- | --- |

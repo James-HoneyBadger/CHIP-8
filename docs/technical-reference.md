@@ -1,7 +1,7 @@
 # Technical reference
 
-How the emulator is built: the modules, the data model, the execution and
-timing models, the assembler's phases, the two frontends, rewind, and the
+How the COSMAC VIP emulator is built: the modules, the data model, the execution
+and timing models, the assembler's phases, the frontends, rewind, and the
 testing strategy. Written for someone about to change the code.
 
 Companion documents: [user manual](user-manual.md) ·
@@ -13,18 +13,23 @@ Companion documents: [user manual](user-manual.md) ·
 
 ## 1. Module map
 
-About 7,300 lines of Python in `chip8/`, 170 in `tools/`, 4,000 in `tests/`.
-Standard library only — nothing outside it is imported anywhere.
+About 9,000 lines of Python in `chip8/`, 170 in `tools/`, 4,300 in `tests/`.
+The machine, assembler, terminal and web frontends are standard library only.
+The desktop application is the exception: it uses PyGObject and GTK 4 from the
+desktop, which are system packages rather than pip ones.
 
 | module | lines | responsibility |
 | --- | --- | --- |
-| `chip8/constants.py` | 104 | every number the machine has: dimensions, addresses, speeds, rewind policy, the two fonts |
-| `chip8/machine.py` | 493 | the 1977 machine. `Chip8Machine.step()` is the only place opcodes are decoded |
-| `chip8/assembler.py` | 950 | assembler **and** linker: scanning, includes, data placement, labels, encoding, pseudo-instructions |
-| `chip8/emulator.py` | 445 | the frame loop on top of the machine: speed, run/pause, rewind, hot reload, snapshots |
+| `chip8/constants.py` | 101 | every number the machine has: dimensions, addresses, speeds, rewind policy, the two fonts |
+| `chip8/machine.py` | 492 | the 1977 machine. `Chip8Machine.step()` is the only place opcodes are decoded |
+| `chip8/assembler.py` | 955 | assembler **and** linker: scanning, includes, data placement, labels, encoding, pseudo-instructions |
+| `chip8/emulator.py` | 476 | the frame loop on top of the machine: speed, run/pause, rewind, hot reload, snapshots |
 | `chip8/frontend_terminal.py` | 360 | half-block ANSI renderer, non-blocking key reading, transport keys |
 | `chip8/frontend_x11.py` | 631 | the window, via `ctypes` and libX11 directly |
-| `chip8/cli.py` | 684 | argument parsing and the six commands |
+| `chip8/frontend_web.py` | 489 | a browser page and its HTTP protocol, for any Linux and any display |
+| `chip8/gui.py` | 885 | the GTK 4 application: drawing area, keypad, monitor, registers, menus |
+| `chip8/desktop.py` | 139 | launcher, icon and MIME file installation (`chip8 desktop`) |
+| `chip8/cli.py` | 824 | argument parsing and the nine commands |
 | `chip8/librarian.py` | 170 | the program catalogue, `new`, and the template |
 | `chip8/screen.py` | 107 | framebuffer → text, with no I/O |
 | `chip8/inspector.py` | 130 | registers, memory and disassembly as text, with no I/O |
@@ -32,9 +37,10 @@ Standard library only — nothing outside it is imported anywhere.
 | `chip8/cosmac1802.py` | 524 | the CDP1802: registers, flags, branches, the two ports, cycle counts |
 | `chip8/vipasm.py` | 452 | the 1802 assembler: sections, labels, the encoding table |
 | `chip8/vipfirmware.py` | 1,381 | the CHIP-8 interpreter, as 1802 source assembled at import |
-| `chip8/vip.py` | 748 | the VIP board — memory, display, keypad, clock — and its emulator adapter |
+| `chip8/vip.py` | 772 | the VIP board — memory, display, keypad, clock — and its emulator adapter |
+| `chip8/data/` | — | the desktop launcher, icon and MIME description |
 | `tools/make_font.py` | 173 | generates `chip8/lib/font.inc` from 4 × 5 pictures |
-| `tests/` | 4,065 | 353 tests |
+| `tests/` | 4,329 | 372 tests |
 
 The split that matters: `machine.py` knows nothing about time, `emulator.py`
 knows nothing about pixels, and `screen.py`/`inspector.py` know nothing about
@@ -44,7 +50,7 @@ the test suite runs in 1.5 seconds.
 Dependencies point one way only:
 
 ```text
-constants → machine → emulator → frontends
+constants → machine → emulator → frontends (terminal, x11, web, gui)
                    ↘ assembler ↗        ↘ cli
                      librarian
 screen, inspector (pure functions, used by frontends and tests)
@@ -275,6 +281,37 @@ Three things this costs, each with a comment in the code:
    event batch, and releases *everything* on focus loss — otherwise a program
    thinks a key is held forever after you alt-tab.
 
+### web (`frontend_web.py`)
+
+One page and a handful of JSON endpoints on `ThreadingHTTPServer`, both from the
+standard library. The page polls `/state`, decodes the framebuffer from base64
+and paints it on a canvas; `/key`, `/action` and `/platform` carry input back.
+It exists because X11 is not universal: a bare Wayland session, a remote SSH
+connection and a machine with no display all have a browser or can forward a
+port. The platform switch rebuilds the emulator from the same program through a
+factory the command line supplies, preserving the speed and the running state.
+One lock guards the emulator: the frame loop runs on the main thread and the
+requests arrive on server threads.
+
+### application (`gui.py`)
+
+GTK 4 through PyGObject, so the window uses the desktop's own toolkit and runs
+under X11 or Wayland. The frame loop is a `GLib.timeout_add` at 60 Hz; the
+drawing area paints the framebuffer as rectangles at an integer scale, which
+keeps pixels square and crisp.
+
+The right panel is the machine front panel: the CHIP-8 registers, the 1802's
+`D`/`DF`/`Q`/`IE`/`P`/`X`, a 4 × 4 keypad whose buttons hold a key down for as
+long as the mouse button is, and a monitor with address and byte fields.
+`Write` pauses the machine, calls the emulator's `write_memory`, and advances the
+address so a program can be typed in; `Set PC` writes the CHIP-8 program
+counter. Keys typed into those fields are not stolen by the keypad because the
+window's key controller checks the focused widget first.
+
+`desktop.py` writes the launcher into `$XDG_DATA_HOME`, resolving `Exec` to the
+installed `chip8-vip` command or to this interpreter with the checkout on
+`PYTHONPATH`; the same install registers `.ch8` as a MIME type.
+
 ### headless
 
 No frontend at all: `cli._headless` drives `advance_frame()` directly, applies
@@ -305,21 +342,23 @@ sequence cannot be reproduced by rewinding alone. Use `--seed` and start over.
 
 ## 8. Testing
 
-353 tests in eleven files, about twelve seconds, no dependencies:
+372 tests in twelve files, about a dozen seconds, with no display and no
+third-party packages needed:
 
 | file | tests | what it pins |
 | --- | --- | --- |
 | `test_machine.py` | 42 | every instruction, both flag outcomes, the quirks, wraparound, stack depth, timers |
 | `test_assembler.py` | 37 | labels, data placement, includes, cycle detection, error origins, derived labels |
 | `test_language.py` | 45 | the syntax: data forms, pseudo-instructions, `.print`/`.string`/`.art`, every operand style |
-| `test_emulator.py` | 25 | the frame loop: speed, timers per frame, rewind determinism, snapshots, state names |
-| `test_frontends.py` | 36 | terminal run-length output, `interpret_input`, X11 pixel packing, `PressTracker` |
+| `test_emulator.py` | 27 | the frame loop: speed, timers per frame, rewind determinism, snapshots, state names, the memory monitor |
+| `test_frontends.py` | 41 | terminal run-length output, `interpret_input`, X11 pixel packing, `PressTracker`, the web protocol |
+| `test_gui.py` | 11 | the application's arguments, monitor hex fields, and the launcher, icon and MIME type it installs |
 | `test_roms.py` | 13 | the five new programs: each runs and draws the expected pixels |
 | `test_examples.py` | 6 | the ported programs: each assembles, loads and survives N frames |
 | `test_regressions.py` | 22 | the five review bugs plus named keys, `.num`'s operand and the clock's refresh, asserted on *what the screen shows* |
 | `test_cosmac1802.py` | 38 | the processor: `SD`/`SM` both ways, the carry and borrow shifts, short and long branches, `SKP`, the ports, cycle counts |
 | `test_vipasm.py` | 26 | the 1802 assembler: encodings, `low()`/`high()`, `.org` sections, and every error it refuses |
-| `test_vip.py` | 63 | the VIP: boot state, display mapping, the keypad matrix, the frame clock, the two screens, the command line, and the firmware against the native machine instruction for instruction |
+| `test_vip.py` | 64 | the VIP: boot state, display mapping, the keypad matrix, the frame clock, the two screens, the monitor, the command line, and the firmware against the native machine instruction for instruction |
 
 Two conventions worth keeping:
 

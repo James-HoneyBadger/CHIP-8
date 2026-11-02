@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chip8.constants import REWIND_SNAPSHOTS, REWIND_STRIDE  # noqa: E402
 from chip8.emulator import Chip8Emulator, FrameClock  # noqa: E402
+from chip8.machine import Chip8Error  # noqa: E402
 
 DRAWER = """\
 start:  LD I, dot
@@ -293,6 +294,32 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(emulator.keys, 1 << 4)
         emulator.release_all_keys()
         self.assertEqual(emulator.keys, 0)
+
+
+class MonitorTests(unittest.TestCase):
+    """The machine-level interface the desktop application's monitor uses."""
+
+    def emulator(self) -> Chip8Emulator:
+        emulator = Chip8Emulator(seed=1)
+        self.assertTrue(emulator.load_bytes(b"\x00\x00", "blank"))
+        return emulator
+
+    def test_a_byte_can_be_entered_read_back_and_refused_outside_memory(self):
+        emulator = self.emulator()
+        self.assertTrue(emulator.write_memory(0x300, 0xAB))
+        self.assertEqual(emulator.read_memory(0x300), 0xAB)
+        self.assertFalse(emulator.write_memory(4096, 0x00))
+        with self.assertRaises(Chip8Error):
+            emulator.read_memory(0x1000)
+
+    def test_a_program_entered_by_hand_runs(self):
+        emulator = self.emulator()
+        for offset, byte in enumerate((0x60, 0x01, 0x00, 0x00)):  # LD V0,1; HALT
+            self.assertTrue(emulator.write_memory(0x200 + offset, byte))
+        self.assertTrue(emulator.set_pc(0x200))
+        emulator.start()
+        emulator.advance_frame()
+        self.assertEqual(emulator.snapshot().v[0], 1)
 
 
 class ClockTests(unittest.TestCase):

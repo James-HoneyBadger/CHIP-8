@@ -162,6 +162,18 @@ python3 -m chip8 dev examples/maze.ch8 --platform vip
 python3 -m chip8 library --run clock --platform vip
 ```
 
+### The application
+
+`chip8-vip` opens the desktop application, and `chip8 desktop install` puts it
+in the application menu and gives `.ch8` files an icon. Its front panel is the
+board's own hardware rather than a CHIP-8 abstraction: the 1802's D/DF/Q/IE/P/X
+beside the CHIP-8 registers, the 4 × 4 keypad wired to the real row scan, and a
+monitor that reads and writes RAM and sets the PC. A program can therefore be
+typed in a byte at a time — address, byte, **Write** — pointed at `0x0200` with
+**Set PC**, and run, with no host operating system in between. The
+[user manual](user-manual.md#application) walks through it; `--frontend web`
+serves the same screen to a browser when the machine has no display server.
+
 `--speed N` still means *CHIP-8 opcodes per frame*, not 1802 instructions: the
 board runs whole CHIP-8 instructions until it has retired `N` of them, and stops
 at the frame's 29,344 clocks if it has not. Both limits are honest: a slowed

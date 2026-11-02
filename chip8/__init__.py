@@ -1,7 +1,9 @@
-"""A CHIP-8 emulator: the 1977 virtual machine and its assembler.
+"""A COSMAC VIP emulator with a complete CHIP-8 system.
 
-The machine implements the original CHIP-8 behavior and SuperChip extensions;
-see ``docs/`` for what it does where emulators disagree.
+The 1977 virtual machine and its assembler, on the board it was written for:
+an emulated CDP1802 running the CHIP-8 interpreter as firmware. The machine
+implements the original behavior and SuperChip extensions; see ``docs/`` for
+what it does where emulators disagree.
 
     from chip8 import Chip8Emulator
 

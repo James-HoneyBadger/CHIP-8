@@ -1,7 +1,7 @@
 # User manual
 
-How to drive the emulator: the frontends, the keys, the debugger, the library
-browser and the scripting flags.
+How to drive the COSMAC VIP emulator: the frontends, the keys, the monitor, the
+debugger, the library browser and the scripting flags.
 
 If you have not run it yet, start with [instructions](instructions.md).
 
@@ -9,7 +9,7 @@ If you have not run it yet, start with [instructions](instructions.md).
 
 ## Contents
 
-1. [Three ways to watch a program](#1-three-ways-to-watch-a-program)
+1. [Where the screen goes](#1-where-the-screen-goes)
 2. [The keypad](#2-the-keypad)
 3. [Controls](#3-controls)
 4. [Speed](#4-speed)
@@ -24,11 +24,37 @@ If you have not run it yet, start with [instructions](instructions.md).
 
 ---
 
-## 1. Three ways to watch a program
+## 1. Where the screen goes
 
 `--frontend` picks one, and `auto` (the default) picks for you: `terminal` if
 stdin and stdout are both terminals, `x11` if there is a display, `headless`
 otherwise.
+
+### application
+
+`chip8-vip` (or `chip8 gui`, or the *COSMAC VIP* entry in the application menu)
+opens the full desktop application. It runs the VIP by default and the native
+machine on request. Its right panel is a machine front panel: the CHIP-8
+registers, the 1802's D/DF/Q/IE/P/X, an on-screen hex keypad, and a monitor that
+writes bytes into memory and sets the PC. That is how a program is entered by
+hand:
+
+1. **New blank machine** from the menu.
+2. Type an address (`0200`) and a byte (`60`), press **Write**; the address
+   steps to the next byte so a program can be typed straight in.
+3. Set the address back to `0200`, press **Set PC**, then **Run**.
+
+`chip8 desktop install` adds the launcher and makes `.ch8` files open in it. GTK
+4 is the only dependency and is a system package: `python3-gi` and
+`gir1.2-gtk-4.0` on Debian and Ubuntu.
+
+### web
+
+`--frontend web` serves the same screen as a page on `127.0.0.1`, which is the
+one that works under a bare Wayland session, over SSH, or on a machine with no
+display server at all. It has the transport buttons, the platform and screen
+switches, and the keypad; the address is printed when it starts. `--web-port`
+fixes the port and `--no-browser` stops it trying to open a browser.
 
 ### terminal
 

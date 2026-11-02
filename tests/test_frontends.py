@@ -7,11 +7,17 @@ inspector text and the status line.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import io
+import json
 import sys
 import tempfile
+import threading
+import time
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -26,6 +32,7 @@ from chip8.frontend_terminal import (  # noqa: E402
     TerminalFrontend,
     render_display,
 )
+from chip8.frontend_web import WebFrontend  # noqa: E402
 from chip8.inspector import (  # noqa: E402
     hex_dump,
     listing_text,
@@ -33,6 +40,7 @@ from chip8.inspector import (  # noqa: E402
     registers_text,
     status_text,
 )
+from chip8.vip import VipEmulator  # noqa: E402
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 
@@ -345,6 +353,109 @@ class TerminalFrontendTests(unittest.TestCase):
         self.assertEqual(emulator.speed, 10)
 
 
+class WebFrontendTests(unittest.TestCase):
+    """The browser frontend's HTTP protocol, with no browser involved."""
+
+    SOURCE = "start: LD V0, 1\n JP start"
+
+    def build(self, platform: str = "native", screen: str = "chip8"):
+        emulator = VipEmulator(seed=1) if platform == "vip" else Chip8Emulator(seed=1)
+        self.assertTrue(emulator.load_source(self.SOURCE), emulator.error)
+        if platform == "vip":
+            emulator.set_screen_view(screen)
+        return emulator
+
+    def start(self, *, platform: str = "native", screen: str = "chip8"):
+        frontend = WebFrontend(
+            self.build(platform, screen),
+            open_browser=False,
+            make_emulator=self.build,
+            platform=platform,
+            screen_view=screen,
+        )
+        thread = threading.Thread(
+            target=frontend.run,
+            kwargs={"start_running": True, "announce": False},
+            daemon=True,
+        )
+        thread.start()
+        self.addCleanup(self._stop, frontend, thread)
+        for _ in range(200):
+            try:
+                self.get(frontend, "state")
+                return frontend, thread
+            except OSError:
+                time.sleep(0.01)
+        self.fail("the web frontend did not answer")
+
+    def _stop(self, frontend: WebFrontend, thread: threading.Thread) -> None:
+        if thread.is_alive():
+            try:
+                self.post(frontend, "action", {"action": "quit"})
+            except OSError:
+                pass
+            thread.join(timeout=3)
+
+    def get(self, frontend: WebFrontend, path: str):
+        with urllib.request.urlopen(frontend.url + path, timeout=3) as response:
+            return json.loads(response.read())
+
+    def post(self, frontend: WebFrontend, path: str, body: dict):
+        request = urllib.request.Request(
+            frontend.url + path,
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status, json.loads(response.read())
+        except urllib.error.HTTPError as failure:
+            return failure.code, json.loads(failure.read())
+
+    def test_the_page_and_its_state_are_served(self):
+        frontend, _ = self.start()
+        with urllib.request.urlopen(frontend.url, timeout=3) as response:
+            page = response.read().decode("utf-8")
+        self.assertIn("<canvas", page)
+        state = self.get(frontend, "state")
+        self.assertEqual((state["width"], state["height"]), (64, 32))
+        self.assertEqual(state["platform"], "native")
+        self.assertEqual(len(base64.b64decode(state["pixels"])), 64 * 32)
+
+    def test_a_key_and_a_transport_action_reach_the_machine(self):
+        frontend, _ = self.start()
+        status, _ = self.post(frontend, "key", {"key": 5, "down": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(frontend.emulator.keys & (1 << 5))
+        self.post(frontend, "action", {"action": "pause"})
+        self.assertEqual(self.get(frontend, "state")["state"], "paused")
+        self.post(frontend, "action", {"action": "step"})
+        self.assertGreater(frontend.emulator.snapshot().cycles, 0)
+
+    def test_the_platform_switch_builds_the_other_board(self):
+        frontend, _ = self.start()
+        status, _ = self.post(
+            frontend, "platform", {"platform": "vip", "screen": "vip"}
+        )
+        self.assertEqual(status, 200)
+        state = self.get(frontend, "state")
+        self.assertEqual((state["width"], state["height"]), (64, 128))
+        self.assertEqual(state["platform"], "vip")
+        self.assertIsInstance(frontend.emulator, VipEmulator)
+        status, payload = self.post(
+            frontend, "platform", {"platform": "native", "screen": "vip"}
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("VIP platform", payload["error"])
+
+    def test_quit_stops_the_process(self):
+        frontend, thread = self.start()
+        status, _ = self.post(frontend, "action", {"action": "quit"})
+        self.assertEqual(status, 200)
+        thread.join(timeout=3)
+        self.assertFalse(thread.is_alive())
+
+
 class CommandLineTests(unittest.TestCase):
     def run_cli(self, arguments: list[str]) -> tuple[int, str]:
         buffer = io.StringIO()
@@ -422,6 +533,15 @@ class CommandLineTests(unittest.TestCase):
             # The bytes are loadable again: they contain the HALT's two NULs.
             emulator = Chip8Emulator()
             self.assertTrue(emulator.load_bytes(body, "out.c8"))
+
+    def test_the_web_frontend_is_a_frontend_and_has_its_flags(self):
+        parser = cli.build_parser()
+        args = parser.parse_args(
+            ["run", "game.ch8", "--frontend", "web", "--no-browser", "--web-port", "8123"]
+        )
+        self.assertEqual(
+            (args.frontend, args.no_browser, args.web_port), ("web", True, 8123)
+        )
 
     def test_asm_reports_an_error_with_a_line_number(self):
         with tempfile.TemporaryDirectory() as folder:
