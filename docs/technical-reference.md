@@ -13,7 +13,7 @@ Companion documents: [user manual](user-manual.md) ·
 
 ## 1. Module map
 
-About 4,000 lines of Python in `chip8/`, 170 in `tools/`, 2,500 in `tests/`.
+About 7,200 lines of Python in `chip8/`, 170 in `tools/`, 3,900 in `tests/`.
 Standard library only — nothing outside it is imported anywhere.
 
 | module | lines | responsibility |
@@ -24,13 +24,17 @@ Standard library only — nothing outside it is imported anywhere.
 | `chip8/emulator.py` | 445 | the frame loop on top of the machine: speed, run/pause, rewind, hot reload, snapshots |
 | `chip8/frontend_terminal.py` | 360 | half-block ANSI renderer, non-blocking key reading, transport keys |
 | `chip8/frontend_x11.py` | 631 | the window, via `ctypes` and libX11 directly |
-| `chip8/cli.py` | 552 | argument parsing and the five commands |
+| `chip8/cli.py` | 685 | argument parsing and the six commands |
 | `chip8/librarian.py` | 170 | the program catalogue, `new`, and the template |
 | `chip8/screen.py` | 107 | framebuffer → text, with no I/O |
 | `chip8/inspector.py` | 130 | registers, memory and disassembly as text, with no I/O |
 | `chip8/lib/*.inc` | 839 | the standard library, in CHIP-8 assembly |
+| `chip8/cosmac1802.py` | 523 | the CDP1802: registers, flags, branches, the two ports, cycle counts |
+| `chip8/vipasm.py` | 443 | the 1802 assembler: sections, labels, the encoding table |
+| `chip8/vipfirmware.py` | 1,364 | the CHIP-8 interpreter, as 1802 source assembled at import |
+| `chip8/vip.py` | 738 | the VIP board — memory, display, keypad, clock — and its emulator adapter |
 | `tools/make_font.py` | 173 | generates `chip8/lib/font.inc` from 4 × 5 pictures |
-| `tests/` | 2,582 | 226 tests |
+| `tests/` | 3,926 | 341 tests |
 
 The split that matters: `machine.py` knows nothing about time, `emulator.py`
 knows nothing about pixels, and `screen.py`/`inspector.py` know nothing about
@@ -140,9 +144,9 @@ and `--mute` silences it.
 
 ### The quirks, and why each one is here
 
-This implementation reproduces Time Warp Studio's machine, which reproduces the
-1977 interpreter plus the SuperChip additions. Each quirk is a decision, and each
-decision makes some program work and some program not:
+This implementation models the 1977 interpreter plus the SuperChip additions.
+Each quirk is a decision, and each decision makes some program work and some
+program not:
 
 | behaviour | choice | consequence |
 | --- | --- | --- |
@@ -301,7 +305,7 @@ sequence cannot be reproduced by rewinding alone. Use `--seed` and start over.
 
 ## 8. Testing
 
-226 tests in eight files, about two seconds, no dependencies:
+341 tests in eleven files, about twelve seconds, no dependencies:
 
 | file | tests | what it pins |
 | --- | --- | --- |
@@ -313,6 +317,9 @@ sequence cannot be reproduced by rewinding alone. Use `--seed` and start over.
 | `test_roms.py` | 13 | the five new programs: each runs and draws the expected pixels |
 | `test_examples.py` | 6 | the ported programs: each assembles, loads and survives N frames |
 | `test_regressions.py` | 22 | the five review bugs plus named keys, `.num`'s operand and the clock's refresh, asserted on *what the screen shows* |
+| `test_cosmac1802.py` | 37 | the processor: `SD`/`SM` both ways, the carry and borrow shifts, short and long branches, `SKP`, the ports, cycle counts |
+| `test_vipasm.py` | 24 | the 1802 assembler: encodings, `low()`/`high()`, `.org` sections, and every error it refuses |
+| `test_vip.py` | 54 | the VIP: boot state, display mapping, the keypad matrix, the frame clock, the two screens, the command line, and the firmware against the native machine instruction for instruction |
 
 Two conventions worth keeping:
 

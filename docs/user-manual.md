@@ -67,6 +67,14 @@ text output:
 python3 -m chip8 run hello --frontend headless --frames 30 --show --report 10
 ```
 
+`--platform vip` runs the program on an emulated COSMAC VIP instead of on this
+machine's own interpreter: the 1802 processor, the display in memory, the
+row-scanned keypad, and CHIP-8 as firmware. Every flag in this manual works the
+same way on it, `--speed` included, and `python3 -m chip8 vip` prints what the
+board is running. `--screen vip` draws the board's own 64 × 128 display instead
+of the CHIP-8 grid — four times as tall, so give it a window or a tall terminal. SuperChip programs need the default platform; the loader says
+so when you try. See [the COSMAC VIP](vip.md).
+
 ---
 
 ## 2. The keypad
@@ -136,6 +144,11 @@ and `run`/`dev` respect it unless you pass `--speed` yourself. `--speed` is
 clamped to 1–2000; the delay timer still decrements once per frame no matter
 what, so a program's sense of time does not change when you speed the machine
 up — only the amount of work it does in each frame does.
+
+The number means the same on both platforms. Under `--platform vip` the board
+runs whole CHIP-8 instructions until it has retired that many, and stops if the
+frame's 29,344 clocks run out first — which an instruction like `CLS`, a loop
+over the whole display, can do on its own.
 
 ---
 
@@ -239,7 +252,7 @@ their first instruction lands.
 ## 8. The library
 
 Twenty-three programs ship with it: five written for this emulator and eighteen
-ported from Time Warp Studio.
+additional bundled examples.
 
 ```sh
 python3 -m chip8 library                 # name, description, speed
@@ -254,7 +267,7 @@ python3 -m chip8 library --run snake --frontend x11 --scale 6
 | `life` | Conway's life in 64 × 32 |
 | `plot` | a plotting toy, drawn with `d_line` |
 | `snake` | a complete game: input, state, score, game over |
-| `bounce`, `maze`, `pong`, … | the Time Warp Studio examples |
+| `bounce`, `maze`, `pong`, … | additional bundled examples |
 
 `--speed` on `library` overrides the program's own, which is normally what you
 want for the old examples: they were written for whatever machine their author

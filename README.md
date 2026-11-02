@@ -10,11 +10,10 @@ thirty-five instructions. It was never hardware. It ran on a COSMAC VIP, a
 Telmac, an ETI-660 and everything after them, which is why the same small
 program still runs here.
 
-This is the CHIP-8 machine from [Time Warp Studio](https://github.com/James-HoneyBadger/Time_Warp_Studio),
-lifted out of that environment and grown into a whole system: the 1977 machine
-with its quirks, SuperChip's extensions, a two-pass assembler that links, a
-standard library of text, drawing, arithmetic and input, five new programs and
-five tools for writing and running your own.
+This is a complete, self-contained CHIP-8 system: the 1977 machine with its
+quirks, SuperChip's extensions, a two-pass assembler that links, a standard
+library of text, drawing, arithmetic and input, five programs and five tools
+for writing and running your own.
 
 ```sh
 python3 -m chip8 library              # what is in the box
@@ -118,7 +117,7 @@ library](docs/library.md) is the API.
 | [`plot`](roms/plot.ch8) | a graph plotter: axes, two curves, and functions as data tables |
 | [`snake`](roms/snake.ch8) | a game: a ring buffer of cells, XOR-erase, walls, self-collision, score |
 
-and in [`examples/`](examples) the eighteen that came from Time Warp Studio.
+and in [`examples/`](examples) eighteen additional programs.
 
 ```sh
 python3 -m chip8 library              # all twenty-three, with their speeds
@@ -192,6 +191,33 @@ The clock is the frame, not the instruction: 60 frames a second and *N* opcodes
 per frame, ten being the original pace (`--speed`). The delay and sound timers
 tick once per frame whether the program executed ten opcodes or none while
 waiting for a key, exactly as they did when they were frame counters.
+
+---
+
+## The other platform: a real COSMAC VIP
+
+The machine above is the 1977 *behaviour*, decoded in Python. The box also
+contains the computer it was written for, emulated down to the processor: a
+CDP1802 at 1.76 MHz, four kilobytes of RAM, the display in that RAM, the
+row-scanned keypad, and the CHIP-8 interpreter as 1802 firmware that every
+opcode executes.
+
+```sh
+python3 -m chip8 run roms/snake.ch8 --platform vip
+python3 -m chip8 run roms/snake.ch8 --platform vip --screen vip   # the board's 64x128 display
+python3 -m chip8 vip                       # the firmware, its sizes and entry points
+```
+
+Everything else works unchanged — the frontends, `--speed`, keys, `--inspect`,
+rewind — because both platforms answer the same interface. `--screen vip` swaps
+the 64 × 32 CHIP-8 grid for the board's own 64 × 128 display, where a CHIP-8
+pixel is four scan lines tall. `--speed N` still
+means *N* CHIP-8 instructions a frame, run one at a time by the firmware. A
+program that needs SuperChip says so and asks for the native platform.
+
+[`docs/vip.md`](docs/vip.md) explains the board, the firmware's dispatch, the
+pointers a handler must not leak, and how the interpreter is tested against the
+native one instruction for instruction.
 
 ---
 
@@ -295,6 +321,7 @@ to lose the game that is running.
 | [Language](docs/language.md) | the assembler: data, includes, pseudo-instructions, labels |
 | [Library](docs/library.md) | each library routine's registers and contract |
 | [Assembler internals](docs/assembly.md) | the two passes, the linker, the encoding table |
+| [COSMAC VIP](docs/vip.md) | the 1802, the firmware interpreter, and `--platform vip` |
 
 ---
 
@@ -310,10 +337,14 @@ to lose the game that is running.
 | [`chip8/inspector.py`](chip8/inspector.py) | Registers, memory, listing and status text |
 | [`chip8/screen.py`](chip8/screen.py) | The framebuffer as characters, with no terminal involved |
 | [`chip8/librarian.py`](chip8/librarian.py) | Finding programs and reading their headers |
-| [`chip8/cli.py`](chip8/cli.py) | `run`, `library`, `new`, `dev`, `asm`, `info` |
+| [`chip8/cli.py`](chip8/cli.py) | `run`, `library`, `new`, `dev`, `asm`, `info`, `vip` |
+| [`chip8/cosmac1802.py`](chip8/cosmac1802.py) | The CDP1802 processor, instruction by instruction |
+| [`chip8/vip.py`](chip8/vip.py) | The VIP board: memory, display, keypad, clock, and the emulator adapter |
+| [`chip8/vipfirmware.py`](chip8/vipfirmware.py) | The CHIP-8 interpreter as 1802 firmware, assembled from source |
+| [`chip8/vipasm.py`](chip8/vipasm.py) | The 1802 assembler that builds that firmware |
 | [`chip8/lib/`](chip8/lib) | The standard library, in CHIP-8 assembly: text, draw, math, input |
 | [`roms/`](roms) | Five programs written for this emulator |
-| [`examples/`](examples) | Eighteen more, from Time Warp Studio |
+| [`examples/`](examples) | Eighteen additional programs |
 | [`docs/`](docs) | The whole manual set: [index](docs/README.md) |
 | [`tools/make_font.py`](tools/make_font.py) | Regenerates the ASCII font from its glyph pictures |
 
@@ -329,7 +360,7 @@ machine has no idea which one is watching.
 python3 -m unittest discover -s tests -t .
 ```
 
-226 tests: every opcode and every quirk, every assembler encoding and refusal,
+341 tests: every opcode and every quirk, every assembler encoding and refusal,
 the linker and its data section, each library routine against the pixels it
 should set, the frame loop and its rewind, the renderers, the command line, and
 all twenty-three programs run for several seconds of emulated time — including
@@ -337,13 +368,13 @@ the clock ticking, the Life grid evolving, the snake moving and turning, and the
 game-over screen appearing. The X11 window test skips itself when there is no
 display.
 
+The COSMAC VIP is tested against the other platform rather than against a
+transcript: the same program, instruction for instruction, must leave the same
+registers, the same timers and the same screen, on every bundled 1977 program
+and on generated ones.
+
 ---
 
 ## Provenance and licence
 
-MIT. The machine, the assembler, the timing model and the `examples/` listings
-are ported from the CHIP-8 in
-[Time Warp Studio](https://github.com/James-HoneyBadger/Time_Warp_Studio); see
-[NOTICE](NOTICE) for the file-level mapping. The linker, the standard library,
-the five programs in `roms/`, the frontends, the tools and the tests are new
-here.
+MIT. See [NOTICE](NOTICE) for licensing and file-level provenance information.

@@ -17,6 +17,7 @@ The reference shelf:
 | [Language](language.md) | the assembly language: syntax, the data section, `.include`/`LIB`, the derived labels, the pseudo-instructions, and the branch-polarity table |
 | [Library](library.md) | the standard library: each routine's registers in and out, what it destroys, and what it costs in bytes |
 | [Assembler internals](assembly.md) | the two passes, the linker, the encoding table — for anyone changing `assembler.py` |
+| [COSMAC VIP](vip.md) | the board CHIP-8 was written for: the 1802, the display in memory, the row-scanned keypad, and the interpreter as firmware you can read and change |
 
 ---
 
