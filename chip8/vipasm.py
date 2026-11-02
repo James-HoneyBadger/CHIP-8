@@ -236,10 +236,19 @@ def assemble_vip(source: str, *, origin: int = 0x1000) -> VipProgram:
         address += _size(line, labels)
 
     emitted: dict[int, bytearray] = {}
+    placed: list[tuple[int, int]] = []
     for line, where in zip(lines, places):
         if line.mnemonic in (".ORG", ".EQU"):
             continue
         data = _encode(line, where, labels)
+        if data:
+            end = where + len(data)
+            for start, stop in placed:
+                if where < stop and start < end:
+                    raise VipAsmError(
+                        f"line {line.number}: this overlaps the bytes at {_hex(start)}"
+                    )
+            placed.append((where, end))
         emitted.setdefault(where, bytearray()).extend(data)
 
     segments: list[tuple[int, bytes]] = []

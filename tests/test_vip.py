@@ -291,6 +291,47 @@ class InstructionTests(unittest.TestCase):
         self.assertTrue(board.cpu.halted)
         self.assertFalse(board.step_instruction(OPCODE_CLOCKS))
 
+    def test_subtracting_into_vf_leaves_the_result(self):
+        board, _ = booted("start: LD VF, 5\n LD VB, 3\n SUB VF, VB\n HALT")
+        step(board, 3)
+        self.assertEqual(board.registers()[0][0xF], 2)
+
+    def test_the_flag_handlers_use_the_flag_page(self):
+        board, _ = booted(
+            "start: LD I, 0x300\n LD V0, 0x11\n LD V1, 0x22\n DW 0xF175\n"
+            " LD V0, 0\n LD V1, 0\n DW 0xF185\n HALT"
+        )
+        step(board, 7)
+        v, i, _pc, _d, _s = board.registers()
+        self.assertEqual((v[0], v[1]), (0x11, 0x22))
+        self.assertEqual(i, 0x300, "the flag handlers do not move I")
+        self.assertEqual(
+            (board.memory.read(0x180), board.memory.read(0x181)), (0x11, 0x22)
+        )
+        self.assertEqual(board.memory.read(0x300), 0, "and do not write through it")
+
+    def test_a_sixteen_deep_call_does_not_reach_the_flags(self):
+        board, _ = booted(
+            """
+            start: LD V0, 0xAA
+                   DW 0xF075
+                   LD V0, 16
+                   LD V1, 1
+                   CALL sub
+                   DW 0xF085
+                   HALT
+            sub:   SUB V0, V1
+                   SE V0, 0
+                   CALL sub
+                   RET
+            """
+        )
+        for _ in range(400):
+            if board.cpu.halted:
+                break
+            board.step_instruction(OPCODE_CLOCKS)
+        self.assertEqual(board.registers()[0][0], 0xAA, "the flags survived the calls")
+
 
 class DifferentialTests(unittest.TestCase):
     """The firmware against the native machine, instruction by instruction."""
@@ -456,6 +497,67 @@ class DifferentialTests(unittest.TestCase):
                            HALT
                     """,
                     keys=keys,
+                )
+
+    def test_the_keypad_skips_name_every_key(self):
+        """A key's value and its row and column are not the same number."""
+
+        for key in range(16):
+            with self.subTest(key=f"{key:X}"):
+                self.assert_platforms_agree(
+                    f"""
+                    start: LD V0, {key}
+                           SKNP V0
+                           LD V1, 0xAA
+                           SKP V0
+                           LD V2, 0xBB
+                           HALT
+                    """,
+                    keys=1 << key,
+                )
+
+    def test_a_register_above_the_keypad_names_no_key(self):
+        for opcode in ("E09E", "E0A1"):
+            for keys in (0, 0xFFFF):
+                with self.subTest(opcode=opcode, keys=f"{keys:04X}"):
+                    self.assert_platforms_agree(
+                        f"""
+                        start: LD V0, 0x1F
+                               DW 0x{opcode}
+                               LD V1, 0xAA
+                               HALT
+                        """,
+                        keys=keys,
+                    )
+
+    def test_the_flag_registers_round_trip_and_leave_i_alone(self):
+        self.assert_platforms_agree(
+            """
+            start: LD I, 0x300
+                   LD V0, 0x11
+                   LD V1, 0x22
+                   LD V2, 0x33
+                   DW 0xF275
+                   LD V0, 9
+                   LD V1, 9
+                   LD V2, 9
+                   DW 0xF285
+                   HALT
+            """
+        )
+
+    def test_writing_vf_keeps_the_result_not_the_flag(self):
+        """The flag is stored first, as the 1977 interpreter does."""
+
+        for opcode in ("8FB5", "8FB6", "8FB7", "8FBE"):
+            with self.subTest(opcode=opcode):
+                self.assert_platforms_agree(
+                    f"""
+                    start: LD VF, 5
+                           LD VB, 3
+                           DW 0x{opcode}
+                           HALT
+                    """
                 )
 
     def test_randomised_programs_agree(self):
@@ -693,6 +795,17 @@ class EmulatorTests(unittest.TestCase):
         emulator.clear_rewind()
         self.assertEqual(emulator.rewind_count, 0)
 
+    def test_pausing_without_progress_adds_no_rewind_moment(self):
+        emulator = self.emulator("start: LD V0, 1\n JP start")
+        emulator.start()
+        emulator.pause()
+        count = emulator.rewind_count
+        emulator.start()
+        emulator.pause()
+        self.assertEqual(emulator.rewind_count, count)
+        emulator.begin_rewind()
+        self.assertEqual(emulator.rewind_count, count)
+
     def test_the_machine_property_gives_the_frontends_a_sound_timer(self):
         emulator = self.emulator("start: LD V0, 9\n LD ST, V0\n HALT")
         emulator.start()
@@ -778,6 +891,11 @@ class CommandLineTests(unittest.TestCase):
                     "headless",
                 ]
             )
+        self.assertIn("--platform vip", str(raised.exception.code))
+
+    def test_the_catalogue_refuses_the_vip_screen_without_the_platform(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.main(["library", "--screen", "vip"])
         self.assertIn("--platform vip", str(raised.exception.code))
 
     def test_the_vip_command_describes_the_firmware(self):

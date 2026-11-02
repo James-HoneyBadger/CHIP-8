@@ -30,6 +30,18 @@ from .machine import Chip8Error
 from .screen import Palette, render_display
 
 
+def _check_screen(args: argparse.Namespace) -> None:
+    """Refuse the board's display on a command that is not running the board."""
+
+    if (
+        getattr(args, "screen", "chip8") != "chip8"
+        and getattr(args, "platform", "native") != "vip"
+    ):
+        raise SystemExit(
+            "chip8: --screen vip is the COSMAC VIP's display; add --platform vip"
+        )
+
+
 def _emulator(args: argparse.Namespace) -> Chip8Emulator:
     """The platform the user asked for.
 
@@ -40,11 +52,8 @@ def _emulator(args: argparse.Namespace) -> Chip8Emulator:
 
     seed = getattr(args, "seed", None)
     view = getattr(args, "screen", "chip8")
+    _check_screen(args)
     if getattr(args, "platform", "native") != "vip":
-        if view != "chip8":
-            raise SystemExit(
-                "chip8: --screen vip is the COSMAC VIP's display; add --platform vip"
-            )
         return Chip8Emulator(seed=seed)
     from .vip import VipEmulator
 
@@ -133,6 +142,7 @@ def _seeded_keys(emulator: Chip8Emulator, literal: str) -> int:
 
 
 def _library(args: argparse.Namespace) -> int:
+    _check_screen(args)
     entries = librarian.catalogue()
     if args.run:
         return _run_program_named(args.run, args)

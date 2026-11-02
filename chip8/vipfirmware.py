@@ -15,9 +15,9 @@ CHIP-8 program could reach, exactly as the original did:
 0x115 the delay timer        0x116 the sound timer
 0x117 the last opcode, high  0x118 and low
 0x120 the call stack, sixteen entries of two bytes
-0x140 the RPL flags
 0x150 the drawing work area  0x160 the keypad work area
-0x170 the decimal work area  0x1F0 the noise byte, written by the board
+0x170 the decimal work area  0x180 the RPL flags
+0x1F0 the noise byte, written by the board
 ===== ============================================================
 
 The ROM holds the fetch loop, the sixteen opcode groups and their tables. The
@@ -35,7 +35,7 @@ around.
 
 Only the sixteen registered opcodes of the 1977 machine are here, plus the three
 of SuperChip's additions that need no hardware the VIP did not have: 00FD halts,
-and FX75/FX85 store and load the sixteen bytes at 0x0140. The scrolls, the
+and FX75/FX85 store and load the sixteen bytes at 0x0180. The scrolls, the
 screen modes, the 16-pixel sprite and the 8x10 font all need something the VIP
 was not built with, and a program that uses them needs the native platform.
 """
@@ -52,7 +52,7 @@ STACK_POINTER = 0x0114
 DELAY_TIMER = 0x0115
 SOUND_TIMER = 0x0116
 CALL_STACK = 0x0120
-RPL_FLAGS = 0x0140
+RPL_FLAGS = 0x0180
 NOISE = 0x01F0
 DISPLAY = 0x0800
 DISPLAY_END = 0x0C00
@@ -82,7 +82,7 @@ OPHI         = 0x0117
 OPLO         = 0x0118
 SCR0         = 0x0119
 CALL_STACK   = 0x0120
-RPL          = 0x0140
+RPL          = 0x0180
 NOISE        = 0x01F0
 
 W_X          = 0x0150          ; drawing: x, y, rows, sprite byte
@@ -99,6 +99,7 @@ W_NEW0       = 0x0159
 W_NEW1       = 0x015A
 W_COLL       = 0x015B
 W_COUNT      = 0x015C
+W_RESULT     = 0x015D
 
 K_MASK       = 0x0160          ; keypad: the row being strobed
 K_COLS       = 0x0161          ; and the columns it answered with
@@ -245,8 +246,8 @@ SKIP2:
             SEP R3
 
 ; ---------------------------------------------------------------------------
-; SETVF: VF = DF. The arithmetic handlers leave their flag in DF, as the 1802
-; wants, and this is where CHIP-8 gets to see it.
+; SETVF: VF = DF, written after the result. ADD is the one arithmetic
+; instruction whose flag is stored last, as the 1977 interpreter does.
 ; ---------------------------------------------------------------------------
 SETVF:
             LDI low(VF)
@@ -254,6 +255,26 @@ SETVF:
             LDI 0x00
             ADCI 0x00
             STR R4
+            SEP R3
+
+; ---------------------------------------------------------------------------
+; FINISH: store a subtraction or a shift the 1977 way -- the flag goes down
+; first, so naming VF as the destination leaves the result there, not the flag.
+; On entry the result is in W_RESULT, DF holds the flag, and R4 points at Vx.
+; ---------------------------------------------------------------------------
+FINISH:
+            LDI low(VF)
+            PLO R4
+            LDI 0x00
+            ADCI 0x00
+            STR R4                ; VF = DF, before the result
+            LDN RA
+            ANI 0x0F
+            PLO R4                ; R4 -> Vx again
+            LDI low(W_RESULT)
+            PLO RE
+            LDN RE
+            STR R4                ; and the result, over VF when x is F
             SEP R3
 
 ; ---------------------------------------------------------------------------
@@ -515,24 +536,32 @@ h8_4:       LDN R4
             ADD
             STR R4
             LBR SETVF
-h8_5:       LDN R4
+h8_5:       LDI low(W_RESULT)
+            PLO RE
+            LDN R4
             SEX R5
             SM
-            STR R4
-            LBR SETVF
-h8_6:       LDN R4
+            STR RE                ; the result, while VF is written
+            LBR FINISH
+h8_6:       LDI low(W_RESULT)
+            PLO RE
+            LDN R4
             SHR
-            STR R4
-            LBR SETVF
-h8_7:       LDN R4
+            STR RE
+            LBR FINISH
+h8_7:       LDI low(W_RESULT)
+            PLO RE
+            LDN R4
             SEX R5
             SD
-            STR R4
-            LBR SETVF
-h8_E:       LDN R4
+            STR RE
+            LBR FINISH
+h8_E:       LDI low(W_RESULT)
+            PLO RE
+            LDN R4
             SHL
-            STR R4
-            LBR SETVF
+            STR RE
+            LBR FINISH
 
 ; ---------------------------------------------------------------------------
 ; Group 9: SNE Vx, Vy
@@ -868,6 +897,9 @@ hE_test:
             LDN RA
             ANI 0x0F
             PLO R4
+            LDN R4
+            ANI 0xF0
+            LBNZ hE_free          ; above 0xF there is no key to be held
             LDI low(K_KEY)
             PLO RE
             LDN R4
@@ -879,11 +911,9 @@ hE_test:
             LDI low(K_KEY)
             PLO R1
             LDN R1
-            SHR
-            SHR                   ; the row is the key's top two bits
-            ADI low(MASKS)
+            ADI low(KEYROWS)      ; the plastic's layout, not key >> 2
             PLO R5
-            LDI high(MASKS)
+            LDI high(KEYROWS)
             PHI R5
             LDN R5
             STR RE
@@ -896,10 +926,9 @@ hE_test:
             LDI low(K_KEY)
             PLO R1
             LDN R1
-            ANI 0x03
-            ADI low(MASKS)
+            ADI low(KEYCOLS)
             PLO R5
-            LDI high(MASKS)
+            LDI high(KEYCOLS)
             PHI R5
             LDN R5
             STR RE                ; the mask for the key's column
@@ -1268,11 +1297,7 @@ hF_75:
             LDI low(RPL)
             PLO R1
             LDI high(RPL)
-            PHI R1
-            GHI R6
-            PHI R1
-            GLO R6
-            PLO R1                ; R1 -> I
+            PHI R1                ; R1 -> the flag page, whatever I holds
 hF_75_l:
             LDN R2
             STR R1
@@ -1284,11 +1309,6 @@ hF_75_l:
             SMI 0x01
             STR RE
             LBNZ hF_75_l
-            GHI R1
-            ANI 0x0F
-            PHI R6
-            GLO R1
-            PLO R6
             SEP R3
 
 hF_85:
@@ -1307,11 +1327,7 @@ hF_85:
             LDI low(RPL)
             PLO R1
             LDI high(RPL)
-            PHI R1
-            GHI R6
-            PHI R1
-            GLO R6
-            PLO R1                ; R1 -> I
+            PHI R1                ; R1 -> the flag page, whatever I holds
 hF_85_l:
             LDN R1
             STR R2
@@ -1323,11 +1339,6 @@ hF_85_l:
             SMI 0x01
             STR RE
             LBNZ hF_85_l
-            GHI R1
-            ANI 0x0F
-            PHI R6
-            GLO R1
-            PLO R6
             SEP R3
 
 ; ---------------------------------------------------------------------------
@@ -1343,6 +1354,12 @@ FONTTAB:    DW 0x0050, 0x0055, 0x005A, 0x005F, 0x0064, 0x0069, 0x006E, 0x0073
             DW 0x0078, 0x007D, 0x0082, 0x0087, 0x008C, 0x0091, 0x0096, 0x009B
 KEYMAP:     DB 0x01, 0x02, 0x03, 0x0C, 0x04, 0x05, 0x06, 0x0D
             DB 0x07, 0x08, 0x09, 0x0E, 0x0A, 0x00, 0x0B, 0x0F
+; The inverse of KEYMAP, indexed by key: the row strobe and the column mask for
+; each hex key. hE uses these because the key's value is not its position.
+KEYROWS:    DB 0x08, 0x01, 0x01, 0x01, 0x02, 0x02, 0x02, 0x04
+            DB 0x04, 0x04, 0x08, 0x08, 0x01, 0x02, 0x04, 0x08
+KEYCOLS:    DB 0x02, 0x01, 0x02, 0x04, 0x01, 0x02, 0x04, 0x01
+            DB 0x02, 0x04, 0x01, 0x04, 0x08, 0x08, 0x08, 0x08
 """
 
 

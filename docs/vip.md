@@ -64,7 +64,7 @@ nothing reads.
 
 ## 3. The firmware
 
-`chip8/vipfirmware.py` is a 1802 listing: 1,509 bytes in three segments, and
+`chip8/vipfirmware.py` is a 1802 listing: 1,569 bytes in three segments, and
 every CHIP-8 opcode is a handler the processor really executes.
 
 ```
@@ -72,9 +72,9 @@ every CHIP-8 opcode is a handler the processor really executes.
 0x1000  START            clear the registers, the display and the timers
 0x1056  FETCH            read two bytes of CHIP-8, dispatch on the high nibble
 0x1075  DONE             restore the scratch pointers, then FETCH again
-0x1091  h0 ... hF        the sixteen handlers, and the tables they use
+0x10A3  h0 ... hF        the sixteen handlers, and the tables they use
 0x1F00  TABLE            sixteen handler addresses, then MASKS, ROWLOW,
-                         FONTTAB and KEYMAP
+                         FONTTAB, KEYMAP and the key's row and column masks
 ```
 
 ### The fetch loop
@@ -119,6 +119,7 @@ program can reach:
 | `0x0150`–`0x015F` | the drawing work area |
 | `0x0160`–`0x016F` | the keypad work area |
 | `0x0170`–`0x0177` | the `FX33` digits |
+| `0x0180`–`0x018F` | the `FX75`/`FX85` RPL flags |
 | `0x01F0` | the noise byte the board writes once a frame |
 
 `chip8.vip` reads exactly these addresses — `Vip.registers()`, `call_stack()`,
@@ -207,7 +208,7 @@ chip8: examples/hires.ch8: this program uses SuperChip opcodes (0x00FF, 0xD010,
 
 Three of SuperChip's additions *are* here, because they need nothing the board
 lacks: `00FD` halts, and `Fx75`/`Fx85` store and load the sixteen bytes of RPL
-flags at `0x0140`. Use the native platform for the rest. Everything else in
+flags at `0x0180`. Use the native platform for the rest. Everything else in
 `examples/` and `roms/` runs on both.
 
 ---

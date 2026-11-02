@@ -446,6 +446,7 @@ class Cdp1802:
             self.memory.write(self.r[2], self.t)
             self.r[2] = (self.r[2] - 1) & 0xFFFF
             self.x = self.p
+            self.ie = 1
         elif opcode == 0x7A:  # REQ
             self.q = 0
         elif opcode == 0x7B:  # SEQ

@@ -648,6 +648,16 @@ class VipEmulator:
 
     def _remember(self) -> None:
         self._frames_since_snapshot = 0
+        cpu = self.vip.cpu
+        if self._states:
+            last = self._states[-1]
+            # Nothing has happened since the last moment; a second copy would
+            # make the newest rewind step one that does nothing.
+            if (
+                last["instructions"] == cpu.instructions
+                and last["r"][7] == cpu.r[7]
+            ):
+                return
         self._states.append(self.vip.save_state())
         self._rewind_position = -1
 

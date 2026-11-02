@@ -120,6 +120,16 @@ class ErrorTests(unittest.TestCase):
             assemble_vip("            .org 0x1000\nSHR R3")
         self.assertIn("takes no operand", str(raised.exception))
 
+    def test_a_second_org_over_placed_bytes_is_refused(self):
+        with self.assertRaises(VipAsmError) as raised:
+            assemble_vip(".org 0x1000\nDB 0xAA\n.org 0x1000\nDB 0xBB")
+        self.assertIn("overlaps", str(raised.exception))
+
+    def test_a_partly_overlapping_org_is_refused(self):
+        with self.assertRaises(VipAsmError) as raised:
+            assemble_vip(".org 0x1000\nDW 0x1234\n.org 0x1001\nDB 0xAA")
+        self.assertIn("overlaps", str(raised.exception))
+
     def test_a_comment_is_not_an_instruction(self):
         source = "; nothing but a comment\nNOP  ; and a trailing one"
         self.assertEqual(code(source), b"\xc4")

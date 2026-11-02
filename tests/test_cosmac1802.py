@@ -103,6 +103,17 @@ class RegisterTests(unittest.TestCase):
         cpu.step()
         self.assertEqual(cpu.d, 0x42)
 
+    def test_mark_saves_x_and_p_and_enables_interrupts(self):
+        cpu, ram = cpu_running(b"\x79")  # MARK
+        cpu.p, cpu.x, cpu.ie = 3, 5, 0
+        cpu.r[2] = 0x0400
+        cpu.step()
+        self.assertEqual(cpu.t, (5 << 4) | 3)
+        self.assertEqual(ram.read(0x0400), (5 << 4) | 3)
+        self.assertEqual(cpu.r[2], 0x03FF)
+        self.assertEqual(cpu.x, 3, "MARK points X at the program counter")
+        self.assertEqual(cpu.ie, 1)
+
 
 class ArithmeticTests(unittest.TestCase):
     def test_add_sets_df_on_carry_out(self):

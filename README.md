@@ -208,7 +208,7 @@ python3 -m chip8 run roms/snake.ch8 --platform vip --screen vip   # the board's 
 python3 -m chip8 vip                       # the firmware, its sizes and entry points
 ```
 
-Everything else works unchanged — the frontends, `--speed`, keys, `--inspect`,
+Everything else works unchanged — the frontends, `--speed`, keys, `--inspector`,
 rewind — because both platforms answer the same interface. `--screen vip` swaps
 the 64 × 32 CHIP-8 grid for the board's own 64 × 128 display, where a CHIP-8
 pixel is four scan lines tall. `--speed N` still
@@ -360,7 +360,7 @@ machine has no idea which one is watching.
 python3 -m unittest discover -s tests -t .
 ```
 
-341 tests: every opcode and every quirk, every assembler encoding and refusal,
+353 tests: every opcode and every quirk, every assembler encoding and refusal,
 the linker and its data section, each library routine against the pixels it
 should set, the frame loop and its rewind, the renderers, the command line, and
 all twenty-three programs run for several seconds of emulated time — including
