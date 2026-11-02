@@ -14,23 +14,37 @@ This page is the hub. The detail lives in three companions:
 
 ---
 
+## Contents
+
+1. [The shape you are programming](#1-the-shape-you-are-programming)
+2. [The two rules](#2-the-two-rules)
+3. [Branching: get the polarity right](#3-branching-get-the-polarity-right)
+4. [Idioms that fit the machine](#4-idioms-that-fit-the-machine)
+5. [The standard library](#5-the-standard-library)
+6. [Five worked examples](#6-five-worked-examples)
+7. [Debugging](#7-debugging)
+8. [Limits worth knowing before you hit them](#8-limits-worth-knowing-before-you-hit-them)
+
+---
+
 ## 1. The shape you are programming
 
 ```text
 0x000  ┌────────────────────────────┐
-       │ 4x5 font, 16 glyphs        │  LD F, Vx points here
+       │ (unused)                   │
 0x050  ├────────────────────────────┤
-       │ 8x10 font, 10 digits       │  SuperChip's LD F, Vx
+       │ 4x5 font, 16 glyphs        │  LD F, Vx points here
 0x0A0  ├────────────────────────────┤
-       │                            │
+       │ 8x10 font, 10 digits       │  SuperChip's LD F, Vx
+0x104  ├────────────────────────────┤
        │ (free: scratch, stack)     │
 0x200  ├────────────────────────────┤
        │ your program: code + data  │
 0xFFF  └────────────────────────────┘
 ```
 
-Sixteen 8-bit registers `V0`–`VF`, a 12-bit address register `I`, a 16-deep
-stack, a program counter, two 8-bit timers and a 64 × 32 monochrome screen.
+Sixteen 8-bit registers `V0`–`VF`, a 12-bit address register `I`, a call stack,
+a program counter, two 8-bit timers and a 64 × 32 monochrome screen.
 There is no memory protection, no multiply, no divide, no indirect register
 access, and no way to read `I`.
 
@@ -166,9 +180,10 @@ lose; state in memory is state you can reload after a call.
 If you need a temporary, declare one in the data section rather than reusing a
 register across a call.
 
-**16-bit arithmetic is two registers.** `m_mul` takes `V2:V3` and returns
-`V6:V7`; the high byte is what you want for a "divide by 256". For screen
-coordinates a single byte is almost always enough — the screen is 64 × 32.
+**16-bit arithmetic is two registers.** `m_mul` takes `V0` and `V1` and returns
+the product in `V2:V3`; the high byte is what you want for a "divide by 256".
+For screen coordinates a single byte is almost always enough — the screen is
+64 × 32.
 
 **Timing is frames.** The delay timer decrements once per frame, so
 `LD V0, 30; LD DT, V0` is half a second, whatever the instruction rate. Write
@@ -183,15 +198,16 @@ modulo for other ranges.
 
 ## 5. The standard library
 
-Include what you need; unused modules cost nothing because the linker only
-places what is referenced.
+Include what you need. A module you do not include costs nothing, because it
+is never placed — but an included module is placed whole, so `LIB math` is about
+135 bytes whether you call one routine or all seven.
 
 | listing | entry points | linked size |
 | --- | --- | --- |
-| `LIB text` | `t_char`, `t_print`, `t_center`, `t_num`, `t_hex`, `t_clear` | 598 bytes (with the font) |
-| `LIB draw` | `d_plot`, `d_unplot`, `d_hline`, `d_vline`, `d_rect`, `d_fill`, `d_xhline`, `d_xfill`, `d_line` | 430 bytes |
-| `LIB math` | `m_mul`, `m_div`, `m_mod`, `m_rnd`, `m_absdiff`, `m_min`, `m_max` | 136 bytes |
-| `LIB input` | `i_poll`, `i_wait`, `i_wait_release` | 34 bytes |
+| `LIB text` | `t_char`, `t_print`, `t_center`, `t_num`, `t_hex`, `t_clear` | about 600 bytes (with the font) |
+| `LIB draw` | `d_plot`, `d_unplot`, `d_hline`, `d_vline`, `d_rect`, `d_fill`, `d_xhline`, `d_xfill`, `d_line` | about 430 bytes |
+| `LIB math` | `m_mul`, `m_div`, `m_mod`, `m_rnd`, `m_absdiff`, `m_min`, `m_max` | about 135 bytes |
+| `LIB input` | `i_poll`, `i_wait`, `i_wait_release` | about 30 bytes |
 
 The five bundled programs are 1068–1841 bytes linked, which leaves most of the
 3.5 KiB for your own code. Full contracts are in [library.md](library.md).
@@ -327,8 +343,8 @@ frame = run_program(SNAKE, frames=90, seed=1).screen  # after eating
 assert glyph_at(frame, x, y) == "1"                   # score reads 1
 ```
 
-If you change a library routine, add a test that draws and checks a pixel. Bugs
-2 and 5 above were invisible to register-level assertions.
+If you change a library routine, add a test that draws and checks a pixel. The
+bugs these rules describe are invisible to register-level assertions.
 
 ---
 
@@ -337,7 +353,7 @@ If you change a library routine, add a test that draws and checks a pixel. Bugs
 | limit | value | what happens past it |
 | --- | --- | --- |
 | memory | 0xFFF | the linker says the program is too big |
-| call depth | 16 | the oldest return address is dropped |
+| call depth | 16 on the VIP, unbounded natively | the VIP's seventeenth call writes past the interpreter's stack; the native machine grows instead, and `RET` with nothing to return is an error |
 | timer | byte | `LD DT, Vx` above 255 is not expressible |
 | register | byte | no 16-bit add except `m_mul`/`m_div` |
 | screen | 64 × 32 (or 128 × 64 in hi-res) | sprites **wrap**, they do not clip |

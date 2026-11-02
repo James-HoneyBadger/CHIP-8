@@ -71,12 +71,12 @@ to jump over its own tables. A label is the address of the thing.
 | Directive | Bytes | What it declares |
 | --- | --- | --- |
 | `.string NAME "text"` | length + 1 | ASCII, NUL-terminated, with `\n`, `\t`, `\0`, `\\`, `\"`, `\xNN` |
-| `.bytes NAME …` | one a value | raw bytes, `1, 2, 0xFF` |
-| `.words NAME …` | two a value | big-endian words; a value may be a label |
+| `.bytes NAME …` | one per value | raw bytes, `1, 2, 0xFF` |
+| `.words NAME …` | two per value | big-endian words; a value may be a label |
 | `.art NAME … .end` | rows × width/8 | a sprite, `#` on and `.` off |
 | `.zero NAME n` | n | n zeroed bytes, for a grid or a buffer |
 
-Every blob also defines three names:
+Every blob also defines these names:
 
 | Name | Is |
 | --- | --- |
@@ -128,9 +128,11 @@ overwrites itself is a listing with a mistake.
 LIB text                 ; the same thing, spelled shorter
 ```
 
-An include is assembled where it appears and **once**: the same file included
-twice contributes one copy, so diamond includes are safe. Search order is the
-including file's own directory, then `chip8/lib`. Cycles are refused.
+An include is assembled where it appears, with the including file's own
+directory searched first and `chip8/lib` second. A file that includes itself,
+directly or through another file, is refused rather than expanded forever.
+Including the same file twice assembles it twice, so its labels collide and the
+assembler reports the duplicate; include a shared file once, from the top.
 
 **Put includes at the end of the listing.** The machine always begins executing
 at `0x200`, and an include is laid down where it appears, so an `LIB text` above

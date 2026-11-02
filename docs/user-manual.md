@@ -16,7 +16,7 @@ If you have not run it yet, start with [instructions](instructions.md).
 5. [Rewind](#5-rewind)
 6. [The inspector](#6-the-inspector)
 7. [Running something you wrote](#7-running-something-you-wrote)
-8. [The library](#8-the-library)
+8. [The program library](#8-the-program-library)
 9. [Headless scripting](#9-headless-scripting)
 10. [Colours and scale](#10-colours-and-scale)
 11. [Files and formats](#11-files-and-formats)
@@ -27,8 +27,8 @@ If you have not run it yet, start with [instructions](instructions.md).
 ## 1. Where the screen goes
 
 `--frontend` picks one, and `auto` (the default) picks for you: `terminal` if
-stdin and stdout are both terminals, `x11` if there is a display, `headless`
-otherwise.
+stdin and stdout are both terminals, `x11` if libX11 can reach a display, `web`
+if a display exists but libX11 cannot reach it, and `headless` otherwise.
 
 ### application
 
@@ -44,17 +44,19 @@ hand:
    steps to the next byte so a program can be typed straight in.
 3. Set the address back to `0200`, press **Set PC**, then **Run**.
 
-`chip8 desktop install` adds the launcher and makes `.ch8` files open in it. GTK
-4 is the only dependency and is a system package: `python3-gi` and
-`gir1.2-gtk-4.0` on Debian and Ubuntu.
+`chip8 desktop install` writes the launcher, the icon and the `.ch8` MIME type
+under `$XDG_DATA_HOME` (usually `~/.local/share`); `chip8 desktop uninstall`
+removes them. GTK 4 is the only dependency and is a system package:
+`python3-gi` and `gir1.2-gtk-4.0` on Debian and Ubuntu.
 
 ### web
 
 `--frontend web` serves the same screen as a page on `127.0.0.1`, which is the
 one that works under a bare Wayland session, over SSH, or on a machine with no
-display server at all. It has the transport buttons, the platform and screen
-switches, and the keypad; the address is printed when it starts. `--web-port`
-fixes the port and `--no-browser` stops it trying to open a browser.
+display server at all. It has transport buttons, the platform and screen
+switches, the registers under the screen, and the keypad on the keyboard; the
+address is printed when it starts. `--web-port` fixes the port and
+`--no-browser` stops it trying to open a browser.
 
 ### terminal
 
@@ -77,9 +79,9 @@ loaded, whether it is running and how fast without opening the inspector.
 
 ### headless
 
-No display at all. It still runs the machine — twenty-three programs, the test
-suite and every `--show` invocation in this manual go through it — with optional
-text output:
+No display at all. It runs the machine without a frontend — the test suite drives
+the emulator the same way, and every `--show` invocation in this manual goes
+through it — with optional text output:
 
 | flag | effect |
 | --- | --- |
@@ -98,8 +100,9 @@ machine's own interpreter: the 1802 processor, the display in memory, the
 row-scanned keypad, and CHIP-8 as firmware. Every flag in this manual works the
 same way on it, `--speed` included, and `python3 -m chip8 vip` prints what the
 board is running. `--screen vip` draws the board's own 64 × 128 display instead
-of the CHIP-8 grid — four times as tall, so give it a window or a tall terminal. SuperChip programs need the default platform; the loader says
-so when you try. See [the COSMAC VIP](vip.md).
+of the CHIP-8 grid — four times as tall, so give it a window or a tall terminal.
+SuperChip programs need the default platform; the loader says so when you try.
+See [the COSMAC VIP](vip.md).
 
 ---
 
@@ -117,29 +120,33 @@ letters, so the layout you see matches the layout the machine sees:
  A  0  B  F                  Z  X  C  V
 ```
 
-That is, `1`→1, `4`→C, `Q`→4, `V`→F. The window and the terminal use the same
-map. Keys are *held*, not tapped: a program that reads `EX9E` sees the key for
-as long as you hold it down.
+That is, `1`→1, `4`→C, `Q`→4, `V`→F. Every frontend uses the same map. Keys are
+*held*, not tapped: a program that reads `EX9E` sees the key for as long as you
+hold it down.
 
 ---
 
 ## 3. Controls
 
-The transport keys are deliberately the same in both interactive frontends, with
-a function-key alias in the window so you can drive a program that wants `R` or
-`P` as keypad-adjacent input:
+The transport keys are deliberately the same in every interactive frontend. The
+X11 window adds function-key aliases so a program that wants `R` or `P` as
+keypad-adjacent input can still be driven:
 
-| action | terminal | window |
-| --- | --- | --- |
-| run / pause | `p` | `p` or `F5` |
-| single step (and pause) | `o` or space | `o` or `F6` or space |
-| reset to the start | `R` | `R` or `F7` |
-| toggle the inspector | `i` | `F8` |
-| dump memory | `m` | `F9` |
-| rewind one snapshot | `[` | `F10` or `[` |
-| forward one snapshot | `]` | `F11` or `]` |
-| slower / faster | `-` `+` | `-` `+` |
-| quit | `Esc` | `Esc` |
+| action | terminal | X11 window | application | browser |
+| --- | --- | --- | --- | --- |
+| run / pause | `p` | `p` or `F5` | `p`, or **Run** | `p`, or **Run** |
+| single step (and pause) | `o` or space | `o`, space or `F6` | `o` or space, or **Step** | `o` or space, or **Step** |
+| reset to the start | `Shift`+`R` | `Shift`+`R` or `F7` | `Shift`+`R`, or Run → Reset | `Shift`+`R`, or **Reset** |
+| registers and listing | `i` | `F8` | registers and machine state, always in the panel | registers and status shown under the screen |
+| memory page | `m` | `F9` | the Memory / monitor panel | — |
+| rewind one snapshot | `[` | `[` or `F10` | `[`, or the arrow button | `[`, or the arrow button |
+| forward one snapshot | `]` | `]` or `F11` | `]`, or the arrow button | `]`, or the arrow button |
+| slower / faster | `-` `+` | `-` `+` | `-` `+`, or Run → Slower/Faster | `-` `+`, or the buttons |
+| quit | `Esc` | `Esc` | close the window, or `Ctrl`+`Q` | **Quit** |
+
+`i` and `m` work in the terminal. The X11 window uses `F8` and `F9`, which print
+to stdout, so start it from a terminal to read them. The application keeps the
+same information in its front panel, where it is always visible.
 
 A program that is waiting on `FX0A` (key press) is woken by the first keypad key
 you press, and the *transport* keys are not visible to it — `p` pauses the
@@ -159,8 +166,9 @@ key polling — happens in frames.
 | 20–60 | comfortable on a modern screen; the bundled games use 20–60 |
 | 200–2000 | stress testing, or a program that computes |
 
-`+` and `-` change it while running: by one below ten, by ten above it, so the
-keys stay useful at both ends of the range. A listing can set its own starting speed:
+`+` and `-` change it while running: by one up to 10, and by ten above that, so
+the keys stay useful at both ends of the range. A listing can set its own
+starting speed:
 
 ```text
 ; speed 60
@@ -230,8 +238,9 @@ Memory
 408 00 EE A7 53 D0 11 3F 00
 ```
 
-In a window the inspector prints to stdout, so start the emulator from a
-terminal to see it.
+In the X11 window the inspector prints to stdout, so start the emulator from a
+terminal to see it. The application draws the registers, the 1802's state and
+the monitor in its front panel instead.
 
 ---
 
@@ -275,7 +284,7 @@ their first instruction lands.
 
 ---
 
-## 8. The library
+## 8. The program library
 
 Twenty-three programs ship with it: five written for this emulator and eighteen
 additional bundled examples.
@@ -293,7 +302,7 @@ python3 -m chip8 library --run snake --frontend x11 --scale 6
 | `life` | Conway's life in 64 × 32 |
 | `plot` | a plotting toy, drawn with `d_line` |
 | `snake` | a complete game: input, state, score, game over |
-| `bounce`, `maze`, `pong`, … | additional bundled examples |
+| `bounce`, `maze`, `tour`, … | additional bundled examples |
 
 `--speed` on `library` overrides the program's own, which is normally what you
 want for the old examples: they were written for whatever machine their author
@@ -340,15 +349,16 @@ Combine `--seed` with `--report` for a run you can diff between versions.
 | --- | --- |
 | terminal | `--color truecolor` (24-bit), `256`, `ascii` (no colour at all), `auto` |
 | x11 | `--scale N` pixels per CHIP-8 pixel; default 8 |
+| application, browser | sized to the window; `--scale` does not apply |
 
 `auto` for colour picks truecolor if `COLORTERM` says so, then 256, then ascii.
 `ascii` renders lit pixels as `#` and dark as a space, which is the form that
 survives copy-paste into anything.
 
-The window draws the colours in `chip8/constants.py`: pale green
+Every frontend draws the colours defined in `chip8/constants.py`: pale green
 `(224, 248, 208)` on near-black `(10, 10, 20)`, the pair the LCD machines this
-is modelled on used. Change `ON_COLOR` and `OFF_COLOR` there and both the window
-and the terminal follow.
+is modelled on used. Change `ON_COLOR` and `OFF_COLOR` there and all four
+follow.
 
 ---
 
@@ -361,11 +371,12 @@ and the terminal follow.
 | `chip8/lib/*.inc` | the standard library, included at assembly time |
 | `chip8/lib/font.inc` | a generated 4 × 5 ASCII font — do not edit by hand |
 | `tools/make_font.py` | what generates it |
-| `tests/` | 226 tests; the reference for what is supposed to be true |
+| `tests/` | 374 tests; the reference for what is supposed to be true |
 
-A listing is UTF-8 text. A binary ROM is the raw bytes the machine will execute,
-and a program with the `.ch8` extension is assembled first; if you want a binary
-from a listing, `asm -o` writes one.
+A listing is plain text, read as Latin-1 so that any byte survives; the bundled
+listings are ASCII. A binary ROM is the raw bytes the machine will execute. A
+`.ch8` file is assembled first; if you want the bytes on their own, `asm -o`
+writes them.
 
 ---
 
@@ -375,14 +386,14 @@ from a listing, `asm -o` writes one.
 | --- | --- |
 | the terminal fills with `^[[?1049h` | something that is not a terminal is reading it; use `--frontend headless` |
 | keys do nothing in the terminal | the terminal is not reporting them; check `--frontend terminal` was chosen, not `auto` in a pipe |
-| `cannot open an X display` | no `DISPLAY`; use `--frontend terminal` |
+| `cannot open an X display` | no `DISPLAY`; use `--frontend terminal`, `web` or `headless` |
 | the window is enormous | `--scale 4` |
 | the program hangs with no output | it is on `FX0A` waiting for a key, or its own key loop; `--keys 1F` proves it |
-| the screen is blank but cycles are counting | the program is drawing off-screen, or to `PAGE`; press `i` and look at `I` |
+| the screen is blank but cycles are counting | the program is drawing off-screen; press `i` (or open the application's panel) and look at `I` |
 | `unknown opcode 0x0000` | control ran into zeroed memory; a `RET` or a jump went to the wrong place |
 | `'x' is not a number` | an undefined label: a typo, a missing `LIB`, or a label defined after a `.org` that moved past it |
 | `'x' is not an instruction form this assembler knows` | a mnemonic that does not exist, or operands in a shape it will not take |
-| `program is too big` | 3584 bytes is the whole address space; the library takes about 800 |
+| `program is too big` | 3584 bytes is the whole address space; the whole library is about 1.2 kB, and only the modules you include are linked |
 | a number prints as one digit or with the wrong digits | the routine in an *old* program may rely on `I` surviving a font draw — see [the programmer's reference](programmer-reference.md#2-the-two-rules) |
 
 When in doubt, `python3 -m chip8 info program.ch8 --labels` shows the addresses

@@ -12,8 +12,8 @@ program still runs here.
 
 This is a complete, self-contained CHIP-8 system: the 1977 machine with its
 quirks, SuperChip's extensions, a two-pass assembler that links, a standard
-library of text, drawing, arithmetic and input, five programs and five tools
-for writing and running your own.
+library of text, drawing, arithmetic and input, twenty-three programs, and the
+toolchain that writes, assembles, inspects and runs them.
 
 ```sh
 python3 -m chip8 library              # what is in the box
@@ -35,28 +35,49 @@ python3 -m chip8 dev mygame.ch8       # write it: save, and it reloads
 
 ---
 
+## Contents
+
+- [Quick start](#quick-start)
+- [The application](#the-application)
+- [Writing a program](#writing-a-program)
+- [The programs](#the-programs)
+- [The keypad](#the-keypad)
+- [What the machine does](#what-the-machine-does)
+- [The other platform: a real COSMAC VIP](#the-other-platform-a-real-cosmac-vip)
+- [Speed, pause, step and rewind](#speed-pause-step-and-rewind)
+- [Headless runs](#headless-runs)
+- [The assembler](#the-assembler)
+- [Documentation](#documentation)
+- [What is in the box](#what-is-in-the-box)
+- [Tests](#tests)
+- [Provenance and licence](#provenance-and-licence)
+
+---
+
 ## Quick start
 
-No installation and nothing outside the standard library for the machine, the
-assembler and the terminal frontends — Python 3.10 or newer:
+No installation and no Python packages: the machine, the assembler, the command
+line and every frontend but the desktop application are standard library only.
+Python 3.10 or newer:
 
 ```sh
 python3 -m chip8 run examples/bounce.ch8
 ```
 
 Where the screen goes is decided for you: the terminal when you have one, an X11
-window when there is a display but no terminal, and a headless run otherwise. To
-be explicit:
+window when there is a display but no terminal, a browser page when a display
+exists but libX11 cannot reach it, and a headless run otherwise. To be explicit:
 
 ```sh
 python3 -m chip8 run examples/maze.ch8 --frontend terminal --scale 2   # 128x16 characters
 python3 -m chip8 run examples/hires.ch8 --frontend x11 --scale 8       # a 1024x512 window
+python3 -m chip8 run examples/tour.ch8 --frontend web --no-browser     # the address is printed
 python3 -m chip8 run examples/tour.ch8 --frontend headless --frames 600
 ```
 
 The distribution is `cosmac-vip`. Installing it puts `chip8` and `cosmac-vip`
-on the path, which needs a virtual environment on systems that mark their
-Python as externally managed:
+(and the `chip8-vip` application) on the path, which needs a virtual environment
+on systems that mark their Python as externally managed:
 
 ```sh
 python3 -m venv .venv && . .venv/bin/activate
@@ -150,8 +171,8 @@ python3 -m chip8 library --run life   # runs at the speed its header asks for
 
 ## The keypad
 
-The pads are mirrored, so the finger positions the books show still work. The
-same keys are used in both frontends:
+The pads are mirrored, so the finger positions the books show still work. Every
+frontend uses the same keys:
 
 | PC keys | `1 2 3 4` | `Q W E R` | `A S D F` | `Z X C V` |
 | --- | --- | --- | --- | --- |
@@ -160,21 +181,26 @@ same keys are used in both frontends:
 The letters are the keypad, so the transport and the debugger sit on keys that
 are not:
 
-| Key | Does | X11 alternative |
+| Key | Does | X11 window |
 | --- | --- | --- |
 | `p` | run / pause | `F5` |
 | `o` or space | step one instruction | `F6` |
-| `R` (shift) | reset | `F7` |
+| `Shift`+`R` | reset | `F7` |
 | `i` | registers + listing | `F8` (prints to the terminal) |
 | `m` | memory page | `F9` (prints to the terminal) |
 | `[` / `]` | rewind back / forward | `F10` / `F11` |
 | `+` / `-` | faster / slower | `+` / `-` |
 | `Esc` | quit | `Esc` |
 
+The application uses the same transport keys and also has buttons and menu items
+for all of them; its registers and memory are always on screen, and it quits
+with the window control or `Ctrl+Q`. The browser page has the same keys plus
+buttons for the transport, and a **Quit** button.
+
 A terminal reports presses but not releases, so a key is held for 120 ms and
 then let go — long enough for a game to notice, short enough that nothing
-sticks. The X11 window gets real press and release events, so held keys behave
-as they do on a real keypad.
+sticks. The X11 window, the application and the browser page get real press and
+release events, so held keys behave as they do on a real keypad.
 
 ---
 
@@ -196,7 +222,7 @@ The SuperChip additions are here too:
 
 | Opcode | Does |
 | --- | --- |
-| `00Cn` | Scroll the display down *n* rows |
+| `00Cn` | Scroll the display down *n* pixels |
 | `00FB` / `00FC` | Scroll four pixels right / left |
 | `00FD` | Halt (SuperChip's "exit interpreter") |
 | `00FE` / `00FF` | 64x32 lo-res / 128x64 hi-res, clearing the screen |
@@ -286,15 +312,12 @@ at a program you are writing:
 python3 -m chip8 run mygame.ch8 --frontend headless --frames 60 --show
 ```
 
-Input can be scripted too — `--keys 1F` holds keys, and `--press 5@30 --release
-5@40` presses one at a frame — so a game can be driven and checked without a
-pair of hands. `--seed N` makes `RND` repeat, so a run of a program that rolls
-dice can be reproduced.
-
-A program that waits for a key has no hands in a headless run, so the keypad can
-be held for it: `--keys 1F` holds keys `1` and `F`. A listing can also say so
-itself with a `; keys 1F` comment, which is what the bundled examples use when
-they want to be runnable unattended.
+Input can be scripted too — `--keys 1F` holds keys `1` and `F`, and `--press
+5@30 --release 5@40` presses one at a frame — so a game can be driven and
+checked without a pair of hands. A program that waits for a key has no hands in
+a headless run; a listing can say which key it wants with a `; keys 1F` comment,
+which is what the bundled examples do to stay runnable unattended. `--seed N`
+makes `RND` repeat, so a run of a program that rolls dice can be reproduced.
 
 ---
 
@@ -320,10 +343,10 @@ dot:    DB 0x80
 ```
 
 `python3 -m chip8 asm examples/bounce.ch8` prints the bytes with their addresses,
-`--labels` adds the label table, and `-o out.c8` writes them. `chip8 info` describes a program without
-running it. [`docs/assembly.md`](docs/assembly.md) is the language reference:
-labels, numbers in both hex spellings, `DB`/`DW`/`HALT`/`SYS`, and the errors
-the assembler refuses with.
+`--labels` adds the label table, and `-o out.c8` writes them. `chip8 info`
+describes a program without running it. [The language](docs/language.md) covers
+directives, data and linking; [the assembler reference](docs/assembly.md) covers
+the instruction forms, the encodings and the errors it refuses with.
 
 Errors are reported with the line they came from, and an assembly error never
 unloads the program that is already loaded — a typo in a listing is not a reason
@@ -342,7 +365,7 @@ to lose the game that is running.
 | [Instruction set](docs/instruction-set.md) | every opcode, with this machine's behaviour for each quirk |
 | [Language](docs/language.md) | the assembler: data, includes, pseudo-instructions, labels |
 | [Library](docs/library.md) | each library routine's registers and contract |
-| [Assembler internals](docs/assembly.md) | the two passes, the linker, the encoding table |
+| [Assembler reference](docs/assembly.md) | the instruction forms, encodings, seeding, and the two passes |
 | [COSMAC VIP](docs/vip.md) | the 1802, the firmware interpreter, and `--platform vip` |
 
 ---
@@ -385,7 +408,7 @@ machine has no idea which one is watching.
 python3 -m unittest discover -s tests -t .
 ```
 
-372 tests: every opcode and every quirk, every assembler encoding and refusal,
+374 tests: every opcode and every quirk, every assembler encoding and refusal,
 the linker and its data section, each library routine against the pixels it
 should set, the frame loop and its rewind, the renderers, the command line, and
 all twenty-three programs run for several seconds of emulated time — including

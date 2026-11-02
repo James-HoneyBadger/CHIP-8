@@ -108,20 +108,27 @@ class Chip8Emulator:
         except OSError as failure:
             self.error = str(failure)
             return False
-        if not self.load_bytes(data, Path(path).name):
+        if not self.load_bytes(data, Path(path).name, Path(path).parent):
             return False
         self.path = str(Path(path).absolute())
         return True
 
-    def load_bytes(self, data: bytes, name: str = "program") -> bool:
+    def load_bytes(
+        self,
+        data: bytes,
+        name: str = "program",
+        base_dir: str | Path | None = None,
+    ) -> bool:
         """A listing (assembled) or a binary ROM (contains a NUL).
 
-        A typo in a listing must not unload the game that is running, so a
-        failure reports and leaves the old program exactly as it was.
+        *base_dir* is where a listing's ``.include`` looks first; the file
+        loader passes the listing's own directory. A typo in a listing must not
+        unload the game that is running, so a failure reports and leaves the old
+        program exactly as it was.
         """
 
         try:
-            program = assemble_chip8(data)
+            program = assemble_chip8(data, base_dir)
         except Chip8Error as failure:
             self.error = str(failure)
             return False

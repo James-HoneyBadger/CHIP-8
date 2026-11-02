@@ -1,7 +1,10 @@
 # Documentation
 
-For the COSMAC VIP emulator and its complete CHIP-8 system. Five documents, and
-a reference shelf behind them. Start wherever you are:
+The manual set for the COSMAC VIP emulator: four guides to doing something, and
+five reference documents to look something up in. Start with the guide that
+matches what you are doing.
+
+## Guides
 
 | if you want to | read |
 | --- | --- |
@@ -10,31 +13,29 @@ a reference shelf behind them. Start wherever you are:
 | write CHIP-8 programs | **[Programmer's reference](programmer-reference.md)** |
 | understand or change the code | **[Technical reference](technical-reference.md)** |
 
-The reference shelf:
+## Reference
 
 | document | contents |
 | --- | --- |
-| [Instruction set](instruction-set.md) | every opcode, its operands, and what this machine does with it — including every place it disagrees with a CHIP-48 emulator, and why |
+| [Instruction set](instruction-set.md) | every opcode, its operands, and what this machine does with it, including every place it disagrees with a CHIP-48 emulator |
 | [Language](language.md) | the assembly language: syntax, the data section, `.include`/`LIB`, the derived labels, the pseudo-instructions, and the branch-polarity table |
 | [Library](library.md) | the standard library: each routine's registers in and out, what it destroys, and what it costs in bytes |
-| [Assembler internals](assembly.md) | the two passes, the linker, the encoding table — for anyone changing `assembler.py` |
+| [Assembler reference](assembly.md) | the instruction forms and encodings, `; keys` seeding, every error the assembler refuses, and the two passes |
 | [COSMAC VIP](vip.md) | the board CHIP-8 was written for: the 1802, the display in memory, the row-scanned keypad, and the interpreter as firmware you can read and change |
 
----
+## Two things worth reading before you write a program
 
-## The two pages people need most
+**Branch polarity.** `SE` skips when the operands are equal, so the instruction
+after it runs when they are not; `SUB` reports *no borrow* in `VF`. The table is
+in [language.md](language.md#two-idioms-that-catch-everybody) and repeated in
+the [programmer's reference](programmer-reference.md#3-branching-get-the-polarity-right),
+because inverted conditionals are the easiest mistake to make in this language
+and the hardest to see on screen.
 
-**The branch-polarity table** — in [language.md](language.md#two-idioms-that-catch-everybody) and repeated
-in the [programmer's reference](programmer-reference.md#3-branching-get-the-polarity-right),
-because inverted branches caused more bugs in this project than everything else
-combined. `SUB` sets `VF = 1` when there was *no* borrow.
-
-**The two rules** — in the [programmer's reference](programmer-reference.md#2-the-two-rules):
-a library call clobbers every register, and `I` survives nothing, not even a
-font draw. Between them they account for every bug the review of this codebase
-found.
-
----
+**The two rules.** A library call clobbers every register, and `I` survives
+nothing — not even a font draw. They are in the
+[programmer's reference](programmer-reference.md#2-the-two-rules); many of the
+bugs found while building this emulator were a broken version of one of them.
 
 ## Reading order for a newcomer
 

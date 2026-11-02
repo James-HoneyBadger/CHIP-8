@@ -5,7 +5,8 @@ the exact 1977 choices, the SuperChip additions it also accepts, and the places
 where it deliberately refuses to be helpful. Where emulators disagree, this book
 says what this one does.
 
-- How to write these opcodes: [the assembler](assembly.md).
+- How to write these opcodes: [the language](language.md) and the
+  [assembler reference](assembly.md).
 - How to run them: the [README](../README.md).
 
 ---
@@ -16,9 +17,9 @@ says what this one does.
 | --- | --- | --- |
 | Memory | 4096 bytes | Programs at `0x200`; the screen is **not** memory-mapped |
 | `V0`–`VF` | 16 × 8 bits | `VF` is the flag register |
-| `I` | 12 bits | An address; wraps at `0xFFF` where it is incremented |
+| `I` | 12 bits | An address; increments wrap to `0` |
 | `PC` | 12 bits, in effect | Points at the next instruction |
-| Stack | As deep as the calls nest | Holds return addresses; `RET` on an empty stack is an error |
+| Stack | Return addresses | The native platform grows it without a fixed depth and raises on an empty `RET`; the COSMAC VIP's interpreter uses sixteen entries in page one |
 | Delay timer | 8 bits | Counts down at 60 Hz |
 | Sound timer | 8 bits | Counts down at 60 Hz; the buzzer sounds while it is non-zero |
 | Display | 64×32, or 128×64 hi-res | One bit per pixel, in its own buffer |
@@ -86,7 +87,7 @@ So `Dxyn` is "family D, register x, register y, n rows", and `D0 11` is
 | Opcode | Mnemonic | What it does |
 | --- | --- | --- |
 | `00E0` | `CLS` | Clear the screen at its current size |
-| `00EE` | `RET` | Return from the subroutine at the top of the stack; an empty stack is an error |
+| `00EE` | `RET` | Return from the subroutine at the top of the stack; on the native platform an empty stack is an error |
 | `0NNN` | `SYS nnn` | An RCA 1802 call. **Ignored** |
 | `0x00` | `HALT` | Halt (an addition: `0x0000` is unused by the original set) |
 | `1nnn` | `JP nnn` | Jump |
@@ -126,7 +127,7 @@ So `Dxyn` is "family D, register x, register y, n rows", and `D0 11` is
 
 | Opcode | Does |
 | --- | --- |
-| `00Cn` | Scroll the display down `n` rows; the top is cleared |
+| `00Cn` | Scroll the display down `n` pixels; the top is cleared |
 | `00FB` | Scroll four pixels right; the gap is cleared |
 | `00FC` | Scroll four pixels left; the gap is cleared |
 | `00FD` | Halt — SuperChip's "exit interpreter" |
@@ -188,14 +189,14 @@ since the original ignores it.
 | Program size | 3584 bytes, `0x200`–`0xFFF` |
 | Opcodes per frame | 1 to 2000 |
 | Frames in a headless run | 600 by default (`--frames`) |
-| Stack depth | As deep as the calls nest; each call costs one Python frame's worth of memory |
+| Stack depth | 16 on the COSMAC VIP; unbounded on the native platform, which grows a list instead of using a fixed page |
 | Rewind | 120 snapshots, one every 15 frames: thirty seconds |
 
 The machine reports what it cannot do instead of doing something else:
 
 | Message | Cause |
 | --- | --- |
-| `RET with an empty call stack` | `RET` without a `CALL` |
+| `RET with an empty call stack` | `RET` without a `CALL` (native platform) |
 | `unknown opcode 0xNNNN at 0xNNN` | A `DW` or a binary byte that is not an instruction |
 | `unknown arithmetic opcode 8xyN` / `unknown opcode FxNN` | Same, inside those families |
 | `the program counter ran past the end of memory` | Fell off the end of the listing |

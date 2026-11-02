@@ -16,6 +16,18 @@ python3 -m chip8 vip --labels --write vip-rom.bin          # the interpreter's s
 
 ---
 
+## Contents
+
+1. [Why this exists](#1-why-this-exists)
+2. [The board](#2-the-board)
+3. [The firmware](#3-the-firmware)
+4. [Running a program on it](#4-running-a-program-on-it)
+5. [The 1802 assembler](#5-the-1802-assembler)
+6. [How it is tested](#6-how-it-is-tested)
+7. [Where the parts are](#7-where-the-parts-are)
+
+---
+
 ## 1. Why this exists
 
 CHIP-8 has a shape that is easy to miss when the interpreter is a Python
@@ -54,7 +66,8 @@ programs tell you whether you broke a program or only the way one is run.
 The RAM/ROM split is the one place this is not a CDP1802 board: on a real VIP
 the interpreter lived in the first page of RAM. Putting it in ROM above the
 four kilobytes keeps a CHIP-8 program from overwriting its interpreter, and it
-is why `chip8 vip --write` produces an image from `0x0000`, not a RAM dump.
+is why `chip8 vip --write` writes the 8 KiB ROM image (`0x1000`-`0x2FFF`), not a
+RAM dump.
 
 `VipMemory` is what the processor sees; `Vip` is the board — memory, clock,
 display, keypad, noise byte, and the cassette bits that software writes and
@@ -92,17 +105,16 @@ address is a consequence of the dispatch rather than something software saves.
 ### The one convention: DONE
 
 Every handler returns to `DONE`, and `DONE` puts `R1`, `R2`, `R4`, `R5` and
-`RE` back into page one before fetching again. Those six registers are the
+`RE` back into page one before fetching again. Those five registers are the
 firmware's scissors: a handler points one of them at the display, at a ROM
 table, or at the CHIP-8 program's own memory, and the next handler must not
 inherit it.
 
-Without `DONE` the firmware was subtly wrong: `DRW` leaves `R4` and `R5`
-pointing into the display and its tables, and the *next* `ADD Vx, nn` wrote to
-display memory instead of a register. Six review bugs and a differential test
-against the native machine came out of that one missing invariant, which is why
-it is one `LDI` and five `PHI`s in one place rather than a rule each handler
-has to remember.
+Without it the firmware is subtly wrong: `DRW` leaves `R4` and `R5`
+pointing into the display and its tables, and the *next* `ADD Vx, nn` writes to
+display memory instead of a register. Making the scratch registers a single
+invariant rather than a rule each handler has to remember is what the
+differential test against the native machine depends on.
 
 ### The interpreter's page
 
@@ -115,7 +127,7 @@ program can reach:
 | `0x0114` | the call-stack pointer |
 | `0x0115`, `0x0116` | the delay and sound timers |
 | `0x0117`, `0x0118` | the opcode being executed |
-| `0x0120` | the call stack, sixteen entries of two bytes, counted from 1 so that `0x0120` can stay zero |
+| `0x0120`–`0x0141` | the call stack: sixteen entries of two bytes at `0x0122`–`0x0141`, counted from 1 so that `0x0120` can stay zero |
 | `0x0150`–`0x015F` | the drawing work area |
 | `0x0160`–`0x016F` | the keypad work area |
 | `0x0170`–`0x0177` | the `FX33` digits |
@@ -178,10 +190,11 @@ serves the same screen to a browser when the machine has no display server.
 board runs whole CHIP-8 instructions until it has retired `N` of them, and stops
 at the frame's 29,344 clocks if it has not. Both limits are honest: a slowed
 board really does idle between instructions, and `CLS` really does cost more
-than a frame, because the clear loop has to store 1,024 bytes at four machine
-cycles a byte. That floor is 32,768 clocks, more than a frame on its own; the
-handler gets within a third of a frame of it by putting eight bytes down per
-pass, and a clear costs 1.36 frames.
+than a frame. The display is 1,024 bytes and a store plus an increment is four
+machine cycles a byte, so 4,096 cycles — 32,768 clocks at eight clocks a cycle
+— is the floor, and that is already more than a frame. The handler puts eight
+bytes down per pass to cut the loop overhead, which makes a clear 4,864 cycles,
+or 38,912 clocks: about 1.33 frames.
 
 ### Two screens
 
@@ -220,8 +233,8 @@ chip8: examples/hires.ch8: this program uses SuperChip opcodes (0x00FF, 0xD010,
 
 Three of SuperChip's additions *are* here, because they need nothing the board
 lacks: `00FD` halts, and `Fx75`/`Fx85` store and load the sixteen bytes of RPL
-flags at `0x0180`. Use the native platform for the rest. Everything else in
-`examples/` and `roms/` runs on both.
+flags at `0x0180`. Use the native platform for the rest. Every bundled program
+that avoids those opcodes runs on both platforms.
 
 ---
 

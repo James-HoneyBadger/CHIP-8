@@ -14,6 +14,7 @@ import contextlib
 import io
 import random
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -683,6 +684,22 @@ class EmulatorTests(unittest.TestCase):
         self.assertTrue(emulator.load_bytes(b"\x00\xe0\x12\x00", "rom.ch8"))
         self.assertTrue(emulator.binary)
         self.assertEqual(emulator.snapshot().name, "rom.ch8")
+
+    def test_an_include_is_found_next_to_the_listing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "helper.inc").write_text("PLOT: DB 0x80\n", encoding="utf-8")
+            program = root / "game.ch8"
+            program.write_text(
+                "start: LD I, PLOT\n"
+                "        DRW V0, V0, 1\n"
+                "        HALT\n"
+                '.include "helper.inc"\n',
+                encoding="utf-8",
+            )
+            emulator = VipEmulator()
+            self.assertTrue(emulator.load_file(program), emulator.error)
+            self.assertFalse(emulator.binary)
 
     def test_a_broken_listing_reports_an_error_rather_than_raising(self):
         emulator = VipEmulator()

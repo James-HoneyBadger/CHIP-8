@@ -11,23 +11,39 @@ Companion documents: [user manual](user-manual.md) ·
 
 ---
 
+## Contents
+
+1. [Module map](#1-module-map)
+2. [Data model](#2-data-model)
+3. [Execution model](#3-execution-model)
+4. [The assembler](#4-the-assembler)
+5. [The font, and why there are two blobs](#5-the-font-and-why-there-are-two-blobs)
+6. [Frontends](#6-frontends)
+7. [Rewind](#7-rewind)
+8. [Testing](#8-testing)
+9. [Performance](#9-performance)
+10. [Known limitations](#10-known-limitations)
+
+---
+
 ## 1. Module map
 
-About 9,000 lines of Python in `chip8/`, 170 in `tools/`, 4,300 in `tests/`.
-The machine, assembler, terminal and web frontends are standard library only.
-The desktop application is the exception: it uses PyGObject and GTK 4 from the
-desktop, which are system packages rather than pip ones.
+About 9,000 lines of Python in `chip8/`, 170 in `tools/`, 4,400 in `tests/`.
+Everything except the desktop application is standard library only — including
+the X11 window, which calls libX11 through `ctypes`. The application is the
+exception: it uses PyGObject and GTK 4 from the desktop, which are system
+packages rather than pip ones.
 
 | module | lines | responsibility |
 | --- | --- | --- |
 | `chip8/constants.py` | 101 | every number the machine has: dimensions, addresses, speeds, rewind policy, the two fonts |
 | `chip8/machine.py` | 492 | the 1977 machine. `Chip8Machine.step()` is the only place opcodes are decoded |
 | `chip8/assembler.py` | 955 | assembler **and** linker: scanning, includes, data placement, labels, encoding, pseudo-instructions |
-| `chip8/emulator.py` | 476 | the frame loop on top of the machine: speed, run/pause, rewind, hot reload, snapshots |
+| `chip8/emulator.py` | 483 | the frame loop on top of the machine: speed, run/pause, rewind, hot reload, snapshots |
 | `chip8/frontend_terminal.py` | 360 | half-block ANSI renderer, non-blocking key reading, transport keys |
 | `chip8/frontend_x11.py` | 631 | the window, via `ctypes` and libX11 directly |
-| `chip8/frontend_web.py` | 489 | a browser page and its HTTP protocol, for any Linux and any display |
-| `chip8/gui.py` | 885 | the GTK 4 application: drawing area, keypad, monitor, registers, menus |
+| `chip8/frontend_web.py` | 501 | a browser page and its HTTP protocol, for any Linux and any display |
+| `chip8/gui.py` | 886 | the GTK 4 application: drawing area, keypad, monitor, registers, menus |
 | `chip8/desktop.py` | 139 | launcher, icon and MIME file installation (`chip8 desktop`) |
 | `chip8/cli.py` | 824 | argument parsing and the nine commands |
 | `chip8/librarian.py` | 170 | the program catalogue, `new`, and the template |
@@ -37,24 +53,36 @@ desktop, which are system packages rather than pip ones.
 | `chip8/cosmac1802.py` | 524 | the CDP1802: registers, flags, branches, the two ports, cycle counts |
 | `chip8/vipasm.py` | 452 | the 1802 assembler: sections, labels, the encoding table |
 | `chip8/vipfirmware.py` | 1,381 | the CHIP-8 interpreter, as 1802 source assembled at import |
-| `chip8/vip.py` | 772 | the VIP board — memory, display, keypad, clock — and its emulator adapter |
+| `chip8/vip.py` | 777 | the VIP board — memory, display, keypad, clock — and its emulator adapter |
 | `chip8/data/` | — | the desktop launcher, icon and MIME description |
 | `tools/make_font.py` | 173 | generates `chip8/lib/font.inc` from 4 × 5 pictures |
-| `tests/` | 4,329 | 372 tests |
+| `tests/` | 4,367 | 374 tests |
 
 The split that matters: `machine.py` knows nothing about time, `emulator.py`
 knows nothing about pixels, and `screen.py`/`inspector.py` know nothing about
 either. Everything above the machine is testable without a display, which is why
-the test suite runs in 1.5 seconds.
+the test suite runs in about fifteen seconds.
 
 Dependencies point one way only:
 
 ```text
-constants → machine → emulator → frontends (terminal, x11, web, gui)
-                   ↘ assembler ↗        ↘ cli
-                     librarian
-screen, inspector (pure functions, used by frontends and tests)
+constants
+  ├── machine ──→ emulator ──→ frontends (terminal, x11, web, gui), cli, screen,
+  │                  ↑          inspector, vip
+  └── assembler ─────┘
+
+vip ──→ cosmac1802, vipasm, vipfirmware, assembler, machine, emulator
+cli ──→ every module above;  gui ──→ emulator, vip (librarian is imported lazily)
+desktop ──→ nothing but the standard library
 ```
+
+### Packaging
+
+`pyproject.toml` defines the distribution `cosmac-vip`, three scripts — `chip8`
+and `cosmac-vip` for `chip8.cli:main`, and `chip8-vip` for `chip8.gui:main` —
+and ships `chip8/data/*` so an installed copy can still write the desktop
+launcher. There is no build step: `pip install -e .` from a checkout is the
+whole of it.
 
 ---
 
@@ -73,10 +101,10 @@ these" and a test can compare two of them field by field.
 | `rpl` | `bytes(16)` | SuperChip's flag registers, `Fx75`/`Fx85` |
 | `i` | `int` | masked to 12 bits on every write |
 | `pc` | `int` | `pc += 2`, masked to 12 bits, so it wraps at 0x1000 |
-| `stack` | `tuple[int, ...]` | depth 16; overflow drops the oldest |
+| `stack` | `tuple[int, ...]` | return addresses, innermost last; the native machine does not cap the depth, and `RET` with an empty stack raises |
 | `delay_timer`, `sound_timer` | `int` | decremented once per frame |
 | `keys` | 16-bit mask | one bit per keypad key |
-| `framebuffer` | `bytes(64 * 32)` | one byte per pixel. Not bit-packed: `DRW` reads and then writes each pixel, so unpacking costs more than the memory saves |
+| `framebuffer` | `bytes` | one byte per pixel: 64 × 32 lo-res, 128 × 64 hi-res. Not bit-packed: `DRW` reads and then writes each pixel, so unpacking costs more than the memory saves |
 | `hi_res` | `bool` | SuperChip mode |
 | `halted`, `waiting_for_key`, `waiting_register` | | the blocking `Fx0A` state, so a snapshot can be taken mid-wait |
 | `cycles`, `collisions` | `int` | counters: useful in the inspector, and in tests |
@@ -89,17 +117,20 @@ run — that is the constructor nearly every test uses.
 
 ### `Chip8Program` (`assembler.py`)
 
-The output of the linker: `memory`, `entry`, `labels`, `size`, `includes`,
-`origin` (file and line of each emitted byte, for error messages and the
-inspector's listing map), plus the provenance of each line so an error inside
-`chip8/lib/text.inc` can say so.
+The output of the linker: `memory`, `entry`, `labels`, `size`, `data_start`,
+`includes` and `binary`, plus two maps used by diagnostics and the inspector:
+`source_lines` (address → listing line) and `sources` (address → file and
+line, including inside an include), so an error in `chip8/lib/text.inc` can
+name the file.
 
 ### `Chip8Emulator` (`emulator.py`)
 
 The only stateful object above the machine. Holds a program, a machine, the
 speed, whether it is running, the rewind deque, an optional `SourceWatcher` and
-an optional seeded `random.Random`. Both frontends and the CLI drive exactly
-this and nothing else, so the three frontends cannot drift apart.
+an optional seeded `random.Random`. The frontends and the CLI drive exactly this
+and nothing else, so they cannot drift apart. `read_memory`, `write_memory` and
+`set_pc` are the small surface the application's monitor uses; both platform
+adapters implement them.
 
 ---
 
@@ -234,8 +265,8 @@ without a picture file.
 
 Each character cell carries two vertically adjacent pixels: the upper half block
 `▀` with the foreground colour set to the top pixel's and the background to the
-bottom one. Horizontally, each cell is two characters wide, so a pixel is
-approximately square in a typical terminal's cell aspect ratio.
+bottom one. One pixel across and two down per cell matches a terminal cell's
+roughly 1:2 aspect ratio, so the picture is approximately square.
 
 Rendering is a run-length pass: for each row pair, compare the pixels, emit the
 character, and only emit an SGR sequence when the colour changes. A typical
@@ -285,7 +316,8 @@ Three things this costs, each with a comment in the code:
 
 One page and a handful of JSON endpoints on `ThreadingHTTPServer`, both from the
 standard library. The page polls `/state`, decodes the framebuffer from base64
-and paints it on a canvas; `/key`, `/action` and `/platform` carry input back.
+and paints it on a canvas; `/key`, `/release`, `/action` and `/platform` carry
+input back.
 It exists because X11 is not universal: a bare Wayland session, a remote SSH
 connection and a machine with no display all have a browser or can forward a
 port. The platform switch rebuilds the emulator from the same program through a
@@ -316,21 +348,23 @@ installed `chip8-vip` command or to this interpreter with the checkout on
 
 No frontend at all: `cli._headless` drives `advance_frame()` directly, applies
 the `--press`/`--release` schedule by frame number, and optionally prints the
-buffers at the end. This is the mode the tests use and the mode screenshots are
-taken in, and it is the reason `--seed` exists.
+buffers at the end. The test suite drives the emulator the same way, without a
+frontend, and it is the reason `--seed` exists.
 
 ---
 
 ## 7. Rewind
 
 `REWIND_SNAPSHOTS = 120` states, one every `REWIND_STRIDE = 15` frames: thirty
-seconds of history at 60 Hz. A state is about 6 KB — 4 KB of memory and 2 KB of
-screen — so the whole buffer is about 750 KB — small enough that a `deque` with `maxlen` is the entire
-implementation, oldest dropped automatically.
+seconds of history at 60 Hz. A state is about 6 KB in lo-res — 4 KB of memory and
+2 KB of screen — and about 12 KB in hi-res, so the whole buffer is 0.75–1.5 MB.
+That is small enough that a `deque` with `maxlen` is the entire implementation,
+with the oldest state dropped automatically.
 
-Rewinding is `rewind_to(index)`: take the stored `Chip8State`, hand it to a fresh
-`Chip8Machine`, and continue from there. Because the state is a value, this is
-exact — there is no "replay the frames" step and therefore no drift.
+Rewinding is `rewind_to(index)`: the stored `Chip8State` is restored into the
+machine with `restore_state`, and the emulator continues from there. Because the
+state is a value, this is exact — there is no "replay the frames" step and
+therefore no drift.
 
 One thing is deliberately *not* in a snapshot: the RNG. A seeded run rewinds to
 the same registers and the same screen, and the next `RND` gives a *different*
@@ -342,15 +376,15 @@ sequence cannot be reproduced by rewinding alone. Use `--seed` and start over.
 
 ## 8. Testing
 
-372 tests in twelve files, about a dozen seconds, with no display and no
+374 tests in twelve files, about fifteen seconds, with no display and no
 third-party packages needed:
 
 | file | tests | what it pins |
 | --- | --- | --- |
-| `test_machine.py` | 42 | every instruction, both flag outcomes, the quirks, wraparound, stack depth, timers |
+| `test_machine.py` | 42 | every instruction, both flag outcomes, the quirks, wraparound, an empty `RET`, timers |
 | `test_assembler.py` | 37 | labels, data placement, includes, cycle detection, error origins, derived labels |
 | `test_language.py` | 45 | the syntax: data forms, pseudo-instructions, `.print`/`.string`/`.art`, every operand style |
-| `test_emulator.py` | 27 | the frame loop: speed, timers per frame, rewind determinism, snapshots, state names, the memory monitor |
+| `test_emulator.py` | 28 | the frame loop: speed, timers per frame, rewind determinism, snapshots, state names, the memory monitor |
 | `test_frontends.py` | 41 | terminal run-length output, `interpret_input`, X11 pixel packing, `PressTracker`, the web protocol |
 | `test_gui.py` | 11 | the application's arguments, monitor hex fields, and the launcher, icon and MIME type it installs |
 | `test_roms.py` | 13 | the five new programs: each runs and draws the expected pixels |
@@ -358,7 +392,7 @@ third-party packages needed:
 | `test_regressions.py` | 22 | the five review bugs plus named keys, `.num`'s operand and the clock's refresh, asserted on *what the screen shows* |
 | `test_cosmac1802.py` | 38 | the processor: `SD`/`SM` both ways, the carry and borrow shifts, short and long branches, `SKP`, the ports, cycle counts |
 | `test_vipasm.py` | 26 | the 1802 assembler: encodings, `low()`/`high()`, `.org` sections, and every error it refuses |
-| `test_vip.py` | 64 | the VIP: boot state, display mapping, the keypad matrix, the frame clock, the two screens, the monitor, the command line, and the firmware against the native machine instruction for instruction |
+| `test_vip.py` | 65 | the VIP: boot state, display mapping, the keypad matrix, the frame clock, the two screens, the monitor, the command line, and the firmware against the native machine instruction for instruction |
 
 Two conventions worth keeping:
 
@@ -382,17 +416,17 @@ Measured on this machine, CPython 3.13, with `roms/snake.ch8`:
 
 | | |
 | --- | --- |
-| one opcode | 0.79 µs → 1.27 M opcodes/s |
-| one frame at speed 10 (the default) | 17 µs → 60,000 frames/s available for 60 needed |
-| one frame at speed 60 | 75 µs → 13,300 frames/s available |
-| one frame at speed 2000 (the maximum) | 1.2 ms → 825 frames/s available for 60 needed |
-| one snapshot | 1.1 µs, taken four times a second → 0.004 % of a frame |
+| one opcode | 0.8–1.1 µs → about 1 M opcodes/s |
+| one frame at speed 10 (the default) | about 8 µs → 120,000 frames/s available for the 60 needed |
+| one frame at speed 60 | 40–50 µs → 20,000–25,000 frames/s available |
+| one frame at speed 2000 (the maximum) | 1.5–2.2 ms → 450–650 frames/s available |
+| one snapshot | about 1.1 µs, one every 15 frames → under 1 % of a speed-10 frame |
 
-The headroom at the default speed is about a thousandfold, which is why the
+The headroom at the default speed is about two thousandfold, which is why the
 emulator is written for clarity rather than speed: there is no dispatch table, no
-pre-decoding and no cached sprite decode, and the 8.3 ms a 60 Hz frame allows is
+pre-decoding and no cached sprite decode, and the 16.7 ms a 60 Hz frame allows is
 never remotely at risk. Even the worst case — maximum speed with a full rewind
-buffer — uses about 7 % of a frame's budget.
+buffer — uses about a quarter of a frame's budget.
 
 The renderer is the part that could be slow and is not: the terminal emits one
 SGR sequence per colour change (a few dozen per frame), and X11 converts the
@@ -411,15 +445,20 @@ reporting a bug:
   did the same. A program that does it is broken; the machine will not tell you.
 - **`Bnnn` past 0xFFF** wraps through the 12-bit mask, i.e. the jump lands
   somewhere valid but not where the author meant.
-- **Stack overflow is silent.** The oldest return address is dropped, as on the
-  original.
+- **The two platforms treat deep recursion differently.** The native machine's
+  call stack is a list with no fixed depth; the VIP's firmware uses the
+  interpreter's sixteen entries at `0x0122`, and a seventeenth `CALL` writes
+  past them into the work area, exactly as the original's fixed page could. A
+  `RET` with nothing to return raises on the native platform; on the VIP it
+  jumps to `0x000` and wraps the stack pointer.
 - **Sound is a bell.** The platforms this models had one bit of sound and this
   has one bit of sound.
 - **No `.ch8` binary format metadata.** A binary ROM is raw bytes; it loads at
   0x200 and starts there. Everything else comes from the listing form.
 - **Rewind does not restore the RNG** (section 7).
 - **The terminal cannot report key releases**, so keys are held for a fixed
-  120 ms. A program that requires a key to be held longer needs the window.
+  120 ms. A program that requires a key to be held longer needs the X11
+  window, the application or the browser page.
 - **hi-res mode is one-way in practice.** `00FE`/`00FF` switch and the screen
   size changes, but the scroll and sprite semantics that go with it are the
   SuperChip ones and most 1977 programs assume neither.

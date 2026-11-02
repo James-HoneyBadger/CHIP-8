@@ -10,12 +10,13 @@ wrote yourself. About ten minutes.
 | | |
 | --- | --- |
 | Python | 3.10 or newer (`python3 --version`) |
-| Anything else | nothing. There are no dependencies to install |
+| Python packages | none: the emulator, assembler and every frontend but the application are standard library only |
 | A window, optionally | libX11, for `--frontend x11` (most Linux desktops have it) |
 | The application, optionally | GTK 4: `python3-gi` and `gir1.2-gtk-4.0` on Debian and Ubuntu |
 
-The terminal frontend and the headless mode work over SSH; the window needs a
-display, and so does the application.
+The terminal frontend and the headless mode work over SSH; the X11 window, the
+application and the browser frontend need a display (the browser can be reached
+over a forwarded port).
 
 ---
 
@@ -38,9 +39,10 @@ pip install -e .
 chip8 --version
 ```
 
-The virtual environment is only needed because Debian and Ubuntu mark their
-system Python as externally managed; with `python3 -m chip8` you can skip it
-entirely.
+Installing also puts `cosmac-vip` (the same command) and `chip8-vip` (the
+desktop application) on the path. The virtual environment is only needed
+because Debian and Ubuntu mark their system Python as externally managed; with
+`python3 -m chip8` you can skip it entirely.
 
 ---
 
@@ -51,8 +53,9 @@ python3 -m chip8 run bounce
 ```
 
 That finds `examples/bounce.ch8`, works out where to draw — the terminal if you
-are in one, an X11 window if you have a display and no terminal, headless
-otherwise — and starts it. Press `Esc` to leave.
+are in one, an X11 window if you have a display and no terminal, a browser page
+if a display exists but X11 cannot reach it, headless otherwise — and starts it.
+Press `Esc` to leave.
 
 Other ways in:
 
@@ -60,6 +63,7 @@ Other ways in:
 python3 -m chip8 library                        # what there is: 23 programs
 python3 -m chip8 library --run snake            # one of them, at its own speed
 python3 -m chip8 run hello --frontend x11       # a window, explicitly
+python3 -m chip8 run hello --frontend web --no-browser   # a browser page; the address is printed
 python3 -m chip8 run life --frontend headless --frames 300 --show
 ```
 
@@ -111,16 +115,17 @@ Press `Esc` to stop the dev loop.
 python3 -m chip8 run pong.ch8 --frontend headless --frames 60 --show
 ```
 
-`--show` prints the framebuffer as characters — each one is two rows of two
-pixels — which is the quickest way to see whether a drawing routine did what you
-meant. `--report 10` prints the status every ten frames while it runs.
+`--show` prints the framebuffer as characters — each character is one pixel wide
+and two pixels tall, the upper half block `▀` — which is the quickest way to see
+whether a drawing routine did what you meant. `--report 10` prints the status
+every ten frames while it runs.
 
 ---
 
 ## 6. Check your work
 
 The test suite is the reference for how everything is supposed to behave, and it
-runs in about two seconds:
+runs in about fifteen seconds:
 
 ```sh
 python3 -m unittest discover -s tests -t .
@@ -144,10 +149,10 @@ python3 -m unittest discover -s tests -t .
 | Symptom | Cause and cure |
 | --- | --- |
 | `no program called 'foo'` | the name is not in `roms/` or `examples/`; `python3 -m chip8 library` lists them all |
-| `cannot open an X display` | no `DISPLAY`, or no X server. Use `--frontend terminal` or `headless` |
+| `cannot open an X display` | no `DISPLAY`, or no X server. Use `--frontend terminal`, `web` or `headless` |
 | `no terminal to read keys from` | you are in a pipe. Add `--frontend headless` |
 | the terminal shows nothing but escape codes | `--color ascii` |
 | a program just sits there | it is waiting for a key: press one, or give it `--keys 1F` |
 | `unknown opcode 0xNNNN at 0xNNN` | the program ran into data. Check the instruction before that address |
 | `RET with an empty call stack` | a `RET` without a `CALL` |
-| the program needs N bytes and memory ends at 0x1000 | the linked program is too big; the library is about 800 bytes of it |
+| the program needs N bytes and memory ends at 0x1000 | the linked program is too big; the whole library is about 1.2 kB, and only the modules you include are linked |

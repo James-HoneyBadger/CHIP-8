@@ -21,7 +21,7 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .constants import FRAMES_PER_SECOND
+from .constants import FRAMES_PER_SECOND, OFF_COLOR, ON_COLOR
 from .emulator import FrameClock, SourceWatcher
 
 __all__ = ["WebFrontend"]
@@ -182,9 +182,9 @@ function draw(s) {
   for (let i = 0; i < raw.length; i++) {
     const on = raw.charCodeAt(i) !== 0;
     const j = i * 4;
-    data[j] = on ? 238 : 11;
-    data[j + 1] = on ? 242 : 12;
-    data[j + 2] = on ? 234 : 13;
+    data[j] = on ? @ON_R@ : @OFF_R@;
+    data[j + 1] = on ? @ON_G@ : @OFF_G@;
+    data[j + 2] = on ? @ON_B@ : @OFF_B@;
     data[j + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
@@ -264,7 +264,19 @@ loop();
 </script>
 </body>
 </html>
-"""
+""".replace(
+    "@ON_R@", str(ON_COLOR[0])
+).replace(
+    "@ON_G@", str(ON_COLOR[1])
+).replace(
+    "@ON_B@", str(ON_COLOR[2])
+).replace(
+    "@OFF_R@", str(OFF_COLOR[0])
+).replace(
+    "@OFF_G@", str(OFF_COLOR[1])
+).replace(
+    "@OFF_B@", str(OFF_COLOR[2])
+)
 
 
 class WebFrontend:

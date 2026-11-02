@@ -417,6 +417,10 @@ class WebFrontendTests(unittest.TestCase):
         with urllib.request.urlopen(frontend.url, timeout=3) as response:
             page = response.read().decode("utf-8")
         self.assertIn("<canvas", page)
+        self.assertIn(
+            f"data[j] = on ? {ON_COLOR[0]} : {OFF_COLOR[0]};", page,
+            "the page should paint in the same palette as the other frontends",
+        )
         state = self.get(frontend, "state")
         self.assertEqual((state["width"], state["height"]), (64, 32))
         self.assertEqual(state["platform"], "native")

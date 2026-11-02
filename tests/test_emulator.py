@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -56,6 +57,22 @@ class LoadingTests(unittest.TestCase):
         # The typo did not unload the program that was already loaded.
         self.assertTrue(emulator.loaded)
         self.assertEqual(emulator.snapshot().name, "drawer")
+
+    def test_an_include_is_found_next_to_the_listing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "helper.inc").write_text("PLOT: DB 0x80\n", encoding="utf-8")
+            program = root / "game.ch8"
+            program.write_text(
+                "start: LD I, PLOT\n"
+                "        DRW V0, V0, 1\n"
+                "        HALT\n"
+                '.include "helper.inc"\n',
+                encoding="utf-8",
+            )
+            emulator = Chip8Emulator()
+            self.assertTrue(emulator.load_file(program), emulator.error)
+            self.assertFalse(emulator.binary)
 
     def test_a_missing_file_is_reported(self):
         emulator = Chip8Emulator()

@@ -24,7 +24,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .constants import FRAMES_PER_SECOND
+from .constants import FRAMES_PER_SECOND, OFF_COLOR, ON_COLOR
 from .emulator import Chip8Emulator
 from .machine import Chip8Error
 from .vip import VipEmulator
@@ -832,7 +832,7 @@ def _run(args: argparse.Namespace, Gtk, Gdk, Gio, GLib) -> int:  # noqa: C901
 
         # -- painting ------------------------------------------------------
         def _draw(self, _area, cr, width: int, height: int) -> None:
-            cr.set_source_rgb(0.043, 0.047, 0.051)
+            cr.set_source_rgb(*(channel / 255 for channel in OFF_COLOR))
             cr.paint()
             snapshot = self._snapshot
             if snapshot is None or not snapshot.loaded:
@@ -847,7 +847,7 @@ def _run(args: argparse.Namespace, Gtk, Gdk, Gio, GLib) -> int:  # noqa: C901
             scale = max(1, int(min(width / columns, height / rows)))
             left = max(0, (width - columns * scale) // 2)
             top = max(0, (height - rows * scale) // 2)
-            cr.set_source_rgb(0.933, 0.949, 0.918)
+            cr.set_source_rgb(*(channel / 255 for channel in ON_COLOR))
             for index, lit in enumerate(snapshot.framebuffer):
                 if lit:
                     cr.rectangle(

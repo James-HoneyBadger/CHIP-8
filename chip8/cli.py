@@ -423,7 +423,7 @@ def _run(args: argparse.Namespace) -> int:
 def _assemble(args: argparse.Namespace) -> int:
     data = Path(args.program).read_bytes()
     try:
-        program = assemble_chip8(data)
+        program = assemble_chip8(data, Path(args.program).parent)
     except Chip8Error as failure:
         print(f"chip8: {failure}", file=sys.stderr)
         return 1
@@ -448,7 +448,7 @@ def _assemble(args: argparse.Namespace) -> int:
 def _info(args: argparse.Namespace) -> int:
     data = Path(args.program).read_bytes()
     try:
-        program = assemble_chip8(data)
+        program = assemble_chip8(data, Path(args.program).parent)
     except Chip8Error as failure:
         print(f"chip8: {failure}", file=sys.stderr)
         return 1

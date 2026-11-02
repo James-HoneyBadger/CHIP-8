@@ -2,8 +2,9 @@
 
 CHIP-8 has thirty-five instructions and no text, no multiply, no way to erase a
 pixel and no comparison. The library is what makes the machine pleasant to write
-for; it is written in CHIP-8 assembly, it is linked into the program, and it
-costs about eight hundred bytes of the four thousand available.
+for. It is written in CHIP-8 assembly and linked into the program. An include
+places its whole module, so include only what you use; all four together are
+about 1.2 kB of the 3.5 kB a program has.
 
 ```text
 .include text
@@ -34,10 +35,10 @@ call goes in memory:
         LD V1, [I]          ; get it back
 ```
 
-Two routines are exceptions, because they are called from inside loops:
-`d_plot`, `d_unplot` and `i_poll` touch nothing above V1 except `VF`, and
-`sn_cell` (in the snake program, not the library) is documented to leave V8
-onwards alone.
+A few routines are documented exceptions, because they are called from inside
+loops: `d_plot` and `d_unplot` clobber only `I` and `VF`; `i_poll` and `i_wait`
+clobber only `V0` and `VF`; and `i_wait_release` clobbers only `VF`. `sn_cell`
+(in the snake program, not the library) leaves `V8` onwards alone.
 
 ---
 
@@ -180,6 +181,8 @@ Roughly, and measured at the default speed of ten opcodes a frame:
 | `m_div` with a large dividend | up to ~800 |
 | `i_poll` | 4 a key, 64 for none |
 
-That is why the games in [`roms/`](../roms) say `; speed 2000` and the title
-card says `; speed 30`: the machine runs at whatever pace you give it, and the
-library is the reason a game needs a thousand opcodes a frame rather than ten.
+That is why the programs in [`roms/`](../roms) ask for very different speeds:
+`life` says `; speed 2000`, `snake` `; speed 60`, `clock` `; speed 1700` and
+the title card `; speed 30`. The machine runs at whatever pace you give it, and
+the library is the reason a game needs hundreds of opcodes a frame rather than
+ten.
