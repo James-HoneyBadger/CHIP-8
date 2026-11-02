@@ -85,6 +85,9 @@ pip install -e .
 chip8 run examples/countdown.ch8
 ```
 
+The wheel is the emulator, its standard library and the application; the bundled
+programs, the documentation and the tests come with the source tree.
+
 ---
 
 ## The application

@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include NOTICE
+include pyproject.toml
+
+recursive-include chip8/lib *.inc
+recursive-include chip8/data *
+recursive-include docs *.md
+recursive-include roms *.ch8
+recursive-include examples *.ch8
+recursive-include tools *.py
+recursive-include tests *.py

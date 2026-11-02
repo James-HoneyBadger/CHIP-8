@@ -46,4 +46,4 @@ chip8-vip = "chip8.gui:main"
 packages = ["chip8"]
 
 [tool.setuptools.package-data]
-chip8 = ["data/*"]
+chip8 = ["data/*", "lib/*.inc"]
