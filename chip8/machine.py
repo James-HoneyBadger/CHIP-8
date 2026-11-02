@@ -1,16 +1,15 @@
 """The 1977 machine: registers, memory, timers and the framebuffer.
 
-This is a port of Time Warp Studio's ``Chip8Machine``
-(``native/src/lang/chip8.cpp``), quirks included. Where emulators disagree, this
-one does what that one does:
+This implements the original CHIP-8 machine and the SuperChip additions
+described below. Where emulators disagree, this one uses these behaviors:
 
 * ``8xy5``/``8xy7``/``8xy6``/``8xyE`` shift and subtract ``Vx`` **in place** and
   write ``VF`` before the result, so ``x == F`` ends up holding the result;
 * sprites **wrap** around the edges instead of clipping;
 * ``Fx55``/``Fx65`` leave ``I`` **one past** the block they touched.
 
-The SuperChip additions the reference accepts are here too: ``00Cn`` scroll,
-``00FB``/``00FC`` scroll a half screen, ``00FD`` halt, ``00FE``/``00FF`` screen
+The SuperChip additions are here too: ``00Cn`` scroll, ``00FB``/``00FC`` scroll
+a half screen, ``00FD`` halt, ``00FE``/``00FF`` screen
 modes, ``Dxy0``'s 16x16 sprite, ``Fx30``'s large font and ``Fx75``/``Fx85``'s
 RPL flags.
 

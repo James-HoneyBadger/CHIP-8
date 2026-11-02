@@ -193,8 +193,8 @@ class TerminalFrontend:
         """`chip8 dev`: the file was saved, so assemble it again.
 
         A listing that does not assemble leaves the running program alone and
-        puts the error on the status line, which is the same contract the Qt
-        window in Time Warp Studio has.
+        puts the error on the status line without disturbing the running
+        program.
         """
 
         if self._watcher is None or not self._watcher.poll(now):

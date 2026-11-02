@@ -1,9 +1,7 @@
 """The machine's dimensions, addresses and its two fonts.
 
 Everything here is a number the 1977 machine has and the SuperChip additions
-that this implementation also accepts. The values are the ones Time Warp
-Studio's CHIP-8 machine uses, so a program assembled for either runs the same
-way on the other.
+that this implementation also accepts.
 """
 
 from __future__ import annotations

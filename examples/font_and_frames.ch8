@@ -1,4 +1,4 @@
-; CHIP-8 in Time Warp Studio.
+; CHIP-8 font and frame demonstration.
 ;
 ; The machine is the 1977 one: 64x32 pixels, sixteen 8-bit registers, and a
 ; display addressed by the DRW instruction. Each two hex digits of a DB line are

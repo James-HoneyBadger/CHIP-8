@@ -1,9 +1,8 @@
 """The assembler and linker: listings become the bytes a 1977 machine was given.
 
-The instruction set and the opcode encoding are Time Warp Studio's
-(``native/src/lang/chip8.cpp``): the same mnemonics, the same two passes, the
-same error text -- the messages are the text a learner reads, so they are part
-of the interface.
+The instruction set and opcode encoding follow the CHIP-8 assembly syntax
+implemented here. The assembler uses two passes and reports source-line errors
+as part of its user-facing interface.
 
 On top of that this assembler links:
 

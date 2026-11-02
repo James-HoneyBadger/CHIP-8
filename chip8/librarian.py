@@ -8,7 +8,7 @@ fall out of date, because the index *is* the programs.
 Two folders are searched:
 
 ``roms/``      the programs written for this emulator, with the standard library
-``examples/``  the ones that came from Time Warp Studio
+``examples/``  additional bundled programs
 
 A listing may also say, in its header:
 

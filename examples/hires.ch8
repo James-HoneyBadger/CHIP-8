@@ -1,4 +1,4 @@
-; SuperChip hi-res in Time Warp Studio.
+; SuperChip hi-res demonstration.
 ;
 ; The original machine is 64x32. SuperChip's 00FF opcode doubles that to 128x64
 ; -- the same 2:1 shape with every pixel half the size -- and 00FE puts it back.
