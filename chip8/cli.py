@@ -3,6 +3,10 @@
 ``python -m chip8 run game.ch8`` picks a frontend that fits where it was
 started: the terminal when it has one, an X11 window when there is a display and
 no terminal, and a headless run otherwise.
+
+By default the program runs on the native machine. ``--platform vip`` runs it on
+a COSMAC VIP instead: an 1802 executing the original interpreter as firmware, so
+the CHIP-8 is emulated by emulated hardware rather than by the native machine.
 """
 
 from __future__ import annotations
@@ -26,10 +30,37 @@ from .machine import Chip8Error
 from .screen import Palette, render_display
 
 
+def _emulator(args: argparse.Namespace) -> Chip8Emulator:
+    """The platform the user asked for.
+
+    Both platforms answer the same interface, so everything after this -- the
+    frontends, the inspector, the headless run -- does not know which one it
+    has. The VIP is imported lazily: it assembles its firmware on import.
+    """
+
+    seed = getattr(args, "seed", None)
+    view = getattr(args, "screen", "chip8")
+    if getattr(args, "platform", "native") != "vip":
+        if view != "chip8":
+            raise SystemExit(
+                "chip8: --screen vip is the COSMAC VIP's display; add --platform vip"
+            )
+        return Chip8Emulator(seed=seed)
+    from .vip import VipEmulator
+
+    emulator = VipEmulator(seed=seed)
+    emulator.set_screen_view(view)
+    return emulator
+
+
+
+
 def _load(emulator: Chip8Emulator, path: str) -> bool:
     if not emulator.load_file(path):
         print(f"chip8: {path}: {emulator.error}", file=sys.stderr)
         return False
+    for note in getattr(emulator, "notes", ()):
+        print(f"chip8: {path}: {note}", file=sys.stderr)
     return True
 
 
@@ -113,7 +144,7 @@ def _library(args: argparse.Namespace) -> int:
     for entry in entries:
         if entry.folder != folder:
             folder = entry.folder
-            where = "written for this emulator" if folder == "roms" else "from Time Warp Studio"
+            where = "written for this emulator" if folder == "roms" else "bundled examples"
             print(f"\n{where} ({folder}/)")
         print(f"  {entry.name:<{width}}  {entry.description[:58]}")
         if entry.speed != 10:
@@ -142,7 +173,7 @@ def _new(args: argparse.Namespace) -> int:
 def _dev(args: argparse.Namespace) -> int:
     """Run a listing and reload it whenever the file changes."""
 
-    emulator = Chip8Emulator(seed=getattr(args, "seed", None))
+    emulator = _emulator(args)
     if not _load(emulator, args.program):
         return 1
     if args.speed == CYCLES_PER_FRAME:
@@ -263,7 +294,7 @@ def _run(args: argparse.Namespace) -> int:
         args.program = str(librarian.find(args.program))
     except Chip8Error:
         pass  # a path that does not exist is reported by the loader below
-    emulator = Chip8Emulator(seed=getattr(args, "seed", None))
+    emulator = _emulator(args)
     if not _load(emulator, args.program):
         return 1
     if args.speed == CYCLES_PER_FRAME:
@@ -389,6 +420,40 @@ def _print_labels(program) -> None:
         print(f"({hidden} derived names such as NAME_hi and NAME_len omitted)")
 
 
+def _vip(args: argparse.Namespace) -> int:
+    """What the COSMAC VIP is made of, and the firmware it runs."""
+
+    from . import vipfirmware
+    from .vip import CLOCK, DISPLAY_ADDRESS, DISPLAY_HEIGHT, DISPLAY_WIDTH, VipMemory
+
+    image = vipfirmware.firmware()
+    print(f"COSMAC VIP: 1802 at {CLOCK:,} Hz, 4K of RAM, firmware in ROM above it")
+    print(
+        f"display {DISPLAY_WIDTH} x {DISPLAY_HEIGHT} at 0x{DISPLAY_ADDRESS:04X}"
+        "; a CHIP-8 pixel is 1 x 4 of them"
+    )
+    print()
+    segments = len(image.segments)
+    print(f"interpreter: {image.size} bytes, built from {segments} segment(s)")
+    for address, data in image.segments:
+        end = address + len(data) - 1
+        where = "RAM (boot stub)" if address < VipMemory.RAM_TOP else "ROM"
+        print(f"  {address:04X}-{end:04X}  {len(data):5d} bytes  {where}")
+    named = ("BOOT", "START", "DONE", "FETCH", "TABLE")
+    print("  " + "  ".join(f"{name} {image.labels[name]:04X}" for name in named))
+    if args.write:
+        rom = image.bytes(VipMemory.ROM_TOP)[VipMemory.RAM_TOP :]
+        Path(args.write).write_bytes(rom)
+        print(f"\nwrote {len(rom)} bytes of ROM to {args.write}")
+    if args.labels:
+        print()
+        for address, name in sorted(
+            (address, name) for name, address in image.labels.items()
+        ):
+            print(f"  {address:04X}  {name}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="chip8",
@@ -404,6 +469,24 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("auto", "terminal", "x11", "headless"),
         default="auto",
         help="where to draw the screen (default: wherever it fits)",
+    )
+    run.add_argument(
+        "--platform",
+        choices=("native", "vip"),
+        default="native",
+        help=(
+            "native runs the opcodes here; vip boots a COSMAC VIP and runs the "
+            "1977 interpreter as 1802 firmware (default: native)"
+        ),
+    )
+    run.add_argument(
+        "--screen",
+        choices=("chip8", "vip"),
+        default="chip8",
+        help=(
+            "on --platform vip: draw the 64x32 CHIP-8 grid, or the board's own "
+            "64x128 display (default: chip8)"
+        ),
     )
     run.add_argument(
         "--speed",
@@ -480,6 +563,21 @@ def build_parser() -> argparse.ArgumentParser:
     library.add_argument(
         "--frontend", choices=("auto", "terminal", "x11", "headless"), default="auto"
     )
+    library.add_argument(
+        "--platform",
+        choices=("native", "vip"),
+        default="native",
+        help="where CHIP-8 runs: this machine, or a COSMAC VIP and its firmware",
+    )
+    library.add_argument(
+        "--screen",
+        choices=("chip8", "vip"),
+        default="chip8",
+        help=(
+            "on --platform vip: draw the 64x32 CHIP-8 grid, or the board's own "
+            "64x128 display (default: chip8)"
+        ),
+    )
     library.add_argument("--speed", type=int, default=CYCLES_PER_FRAME, metavar="N")
     library.add_argument("--scale", type=int, default=0)
     library.add_argument("--fps", type=int, default=30)
@@ -510,6 +608,21 @@ def build_parser() -> argparse.ArgumentParser:
     dev.add_argument(
         "--frontend", choices=("auto", "terminal", "x11", "headless"), default="auto"
     )
+    dev.add_argument(
+        "--platform",
+        choices=("native", "vip"),
+        default="native",
+        help="where CHIP-8 runs: this machine, or a COSMAC VIP and its firmware",
+    )
+    dev.add_argument(
+        "--screen",
+        choices=("chip8", "vip"),
+        default="chip8",
+        help=(
+            "on --platform vip: draw the 64x32 CHIP-8 grid, or the board's own "
+            "64x128 display (default: chip8)"
+        ),
+    )
     dev.add_argument("--speed", type=int, default=CYCLES_PER_FRAME, metavar="N")
     dev.add_argument("--scale", type=int, default=0)
     dev.add_argument("--fps", type=int, default=30)
@@ -533,6 +646,15 @@ def build_parser() -> argparse.ArgumentParser:
     info.add_argument("program", help="a .ch8 listing or binary ROM")
     info.add_argument("--labels", action="store_true", help="list the labels")
     info.set_defaults(handler=_info)
+
+    vip = sub.add_parser(
+        "vip", help="describe the COSMAC VIP firmware that runs a program"
+    )
+    vip.add_argument("--write", metavar="FILE", help="write the 8K ROM image")
+    vip.add_argument(
+        "--labels", action="store_true", help="list the interpreter's labels"
+    )
+    vip.set_defaults(handler=_vip)
     return parser
 
 

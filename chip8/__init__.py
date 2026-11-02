@@ -1,8 +1,7 @@
 """A CHIP-8 emulator: the 1977 virtual machine and its assembler.
 
-The machine is a port of Time Warp Studio's CHIP-8
-(``native/src/lang/chip8.cpp``), quirks included; see ``docs/`` for what it does
-where emulators disagree.
+The machine implements the original CHIP-8 behavior and SuperChip extensions;
+see ``docs/`` for what it does where emulators disagree.
 
     from chip8 import Chip8Emulator
 
@@ -11,6 +10,17 @@ where emulators disagree.
     emulator.start()
     for _ in range(120):
         emulator.advance_frame()
+
+``VipEmulator`` is the same program on the computer CHIP-8 was written for: an
+emulated COSMAC VIP, running the 1977 interpreter as CDP1802 firmware. It
+answers the same interface, so a frontend written for one runs the other.
+
+    from chip8 import VipEmulator
+
+    emulator = VipEmulator()
+    emulator.load_file("examples/bounce.ch8")
+    emulator.start()
+    emulator.advance_frame()
 """
 
 from __future__ import annotations
@@ -31,7 +41,28 @@ from .machine import Chip8Error, Chip8Machine, Chip8State
 
 __version__ = "1.0.0"
 
+#: The VIP is imported on first use: importing it assembles its firmware, which
+#: nobody who only wants the native machine should pay for.
+_LAZY = {
+    "Cdp1802": "cosmac1802",
+    "Vip": "vip",
+    "VipEmulator": "vip",
+    "VipMemory": "vip",
+    "VipProgram": "vipasm",
+    "assemble_vip": "vipasm",
+}
+
+
+def __getattr__(name: str):
+    module = _LAZY.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from importlib import import_module
+
+    return getattr(import_module(f".{module}", __name__), name)
+
 __all__ = [
+    "Cdp1802",
     "Chip8Emulator",
     "Chip8Error",
     "Chip8Machine",
@@ -47,7 +78,12 @@ __all__ = [
     "PROGRAM_ADDRESS",
     "SCREEN_HEIGHT",
     "SCREEN_WIDTH",
+    "Vip",
+    "VipEmulator",
+    "VipMemory",
+    "VipProgram",
     "assemble_chip8",
+    "assemble_vip",
     "load_program",
     "load_program_file",
 ]
