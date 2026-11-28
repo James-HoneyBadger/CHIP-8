@@ -1,3 +1,5 @@
+<p align="center"><img src="hb-classic-banner.svg" alt="COSMAC VIP / CHIP-8 — Classic virtual machine and emulator; Honey Badger Universe" width="960"></p>
+
 # COSMAC VIP
 
 *A COSMAC VIP emulator with a complete CHIP-8 system: the CDP1802 and the 1977

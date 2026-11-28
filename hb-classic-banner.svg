@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="152" viewBox="0 0 960 152" role="img" aria-labelledby="title desc">
+<title id="title">COSMAC VIP / CHIP-8</title><desc id="desc">Classic virtual machine and emulator. Honey Badger Universe, Contemporary Classic.</desc>
+<rect x="1" y="1" width="958" height="150" rx="7" fill="#F5F3EB" stroke="#B6BCB8" stroke-width="2"/>
+<path d="M8 2H952Q958 2 958 8V30H2V8Q2 2 8 2" fill="#536B79"/>
+<text x="20" y="20" font-family="monospace" font-size="13" fill="#F5F4EE">HONEY BADGER UNIVERSE / RETRO COMPUTING</text>
+<rect x="902" y="11" width="9" height="9" rx="1" fill="#DDDCD4"/><rect x="919" y="11" width="9" height="9" rx="1" fill="#DDDCD4"/><rect x="936" y="11" width="9" height="9" rx="1" fill="#DDDCD4"/>
+<rect x="25" y="45" width="5" height="63" fill="#A88B55"/>
+<text x="43" y="77" font-family="Verdana,Arial,sans-serif" font-size="33" font-weight="bold" fill="#354650">COSMAC VIP / CHIP-8</text>
+<text x="44" y="103" font-family="Verdana,Arial,sans-serif" font-size="19" fill="#354650">Classic virtual machine and emulator</text>
+<rect x="2" y="119" width="956" height="31" rx="4" fill="#E1E3DE"/>
+<text x="24" y="139" font-family="Verdana,Arial,sans-serif" font-size="12" fill="#354650">Independent software for independent minds.</text>
+<text x="936" y="139" text-anchor="end" font-family="monospace" font-size="12" fill="#354650">CONTEMPORARY CLASSIC</text>
+</svg>
